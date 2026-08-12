@@ -66,6 +66,37 @@ body {
   color: var(--ink);
 }
 
+/* ---- KPI row (stat tiles, summary at a glance) ---- */
+.kpi-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-lg);
+  margin: var(--space-2xl) clamp(16px, 4vw, 32px) 0;
+  max-width: 1200px;
+  margin-left: auto;
+  margin-right: auto;
+}
+.stat-tile {
+  flex: 1 1 180px;
+  background: var(--canvas-soft);
+  border-radius: var(--radius-xl);
+  padding: var(--space-lg) var(--space-2xl);
+}
+.stat-tile.over { background: var(--ink); color: var(--on-dark); }
+.stat-tile .stat-value {
+  font-family: var(--font-display);
+  font-size: 32px;
+  font-weight: 700;
+  line-height: 40px;
+  color: inherit;
+}
+.stat-tile .stat-label {
+  margin-top: 4px;
+  font-size: 13px;
+  color: var(--body);
+}
+.stat-tile.over .stat-label { color: var(--mute); }
+
 /* ---- client bar (top-of-page registration panel) ---- */
 .client-bar {
   margin: var(--space-2xl) clamp(16px, 4vw, 32px) 0;
@@ -91,6 +122,7 @@ body {
     padding: var(--space-lg) 16px var(--space-2xl);
   }
   .client-bar { margin: var(--space-lg) 16px 0; }
+  .kpi-row { margin: var(--space-lg) 16px 0; }
   .topbar { padding: var(--space-md) 16px var(--space-sm); }
   .topbar h1 { font-size: 24px; line-height: 32px; }
 }
@@ -322,6 +354,40 @@ button.btn-ghost:hover {
   margin-bottom: 6px;
   word-break: break-word;
 }
+
+/* bullet-style bar: fill = 보유비중, tick = 목표비중, both on a 0–100% scale.
+   One hue only (no diverging pair in this system) — the tick's ring is what
+   keeps it legible whether it lands on the fill or the bare track. */
+.weight-bar {
+  position: relative;
+  height: 10px;
+  border-radius: var(--radius-pill);
+  background: var(--surface-pressed);
+  margin-bottom: 10px;
+}
+.weight-bar-fill {
+  position: absolute;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  border-radius: var(--radius-pill);
+  background: var(--ink);
+}
+.weight-bar-target {
+  position: absolute;
+  top: -3px;
+  bottom: -3px;
+  width: 2px;
+  background: var(--ink);
+  box-shadow: -1.5px 0 0 var(--canvas), 1.5px 0 0 var(--canvas);
+  transform: translateX(-1px);
+}
+.deviation-card.over .weight-bar { background: var(--black-elevated); }
+.deviation-card.over .weight-bar-fill { background: var(--on-dark); }
+.deviation-card.over .weight-bar-target {
+  background: var(--on-dark);
+  box-shadow: -1.5px 0 0 var(--ink), 1.5px 0 0 var(--ink);
+}
 .deviation-card .stat-row {
   display: flex;
   justify-content: space-between;
@@ -335,6 +401,17 @@ button.btn-ghost:hover {
   color: inherit;
   margin-top: 6px;
 }
+
+.sum-check {
+  margin-top: var(--space-sm);
+  font-size: 13px;
+  color: var(--body);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-xs);
+}
+.sum-check strong { color: var(--ink); font-weight: 700; }
 
 /* status tag = category-button pill: canvas-soft bg by default, polarity-flipped when over */
 .tag {

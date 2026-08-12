@@ -16,6 +16,8 @@
   <h1>리밸런싱 체크 도구</h1>
 </header>
 
+<section class="kpi-row" id="kpi-row"></section>
+
 <section class="panel client-bar">
   <h2>고객 등록</h2>
   <p class="sub">고객명과 점검일을 입력해 등록하고, 아래 카드를 클릭해 점검할 고객을 선택하세요.</p>
@@ -35,19 +37,21 @@
     <p class="sub" id="holding-panel-sub">위에서 고객을 먼저 선택하세요.</p>
 
     <form class="add-form" id="holding-form">
-      <input class="asset-name-input" id="holding-asset" type="text" placeholder="자산군명 (예: 국내주식)" required>
+      <input class="asset-name-input" id="holding-asset" type="text" list="asset-class-options" placeholder="자산군명 (예: 국내주식)" required>
+      <datalist id="asset-class-options"></datalist>
       <input class="weight-input" id="holding-actual" type="number" step="0.1" min="0" max="100" placeholder="보유비중(%)" required>
       <input class="weight-input" id="holding-target" type="number" step="0.1" min="0" max="100" placeholder="목표비중(%)" required>
       <button type="submit">+ 추가</button>
     </form>
 
     <ul id="holding-list"></ul>
+    <div class="sum-check" id="holding-sum"></div>
   </section>
 
   <aside>
     <section class="panel">
       <h2>이탈률 결과</h2>
-      <p class="sub">이탈 기준: 보유비중 − 목표비중이 ±5%p를 초과하면 리밸런싱 필요로 표시합니다.</p>
+      <p class="sub">이탈 기준: 보유비중 − 목표비중이 ±5%p를 초과하면 리밸런싱 필요로 표시합니다. (막대: 보유비중, 세로선: 목표비중)</p>
       <div class="card-grid" id="deviation-cards"></div>
     </section>
 

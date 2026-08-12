@@ -7,6 +7,7 @@
 
   var DEVIATION_THRESHOLD = 5; // %p
   var OVERDUE_DAYS = 7; // "주 1회" cadence — flag a client once this many days pass since their last check
+  var DEFAULT_ASSET_CLASSES = ["국내주식", "해외주식", "채권", "현금성자산", "대체투자", "기타"];
 
   function escapeHtml(str) {
     var div = document.createElement("div");
@@ -47,6 +48,35 @@
   var holdings = []; // all holdings, across all clients — needed for the rebalance list
   var selectedClientId = null;
   var editingHoldingId = null;
+
+  // ---- KPI row (상단 요약: 전체 고객 / 이탈 초과 고객 / 점검 밀린 고객) ----
+  function renderKpis() {
+    var box = document.getElementById("kpi-row");
+
+    var totalNames = {};
+    clients.forEach(function (c) { totalNames[c.name] = true; });
+    var totalCount = Object.keys(totalNames).length;
+
+    var overClientIds = {};
+    holdings.forEach(function (h) {
+      if (Math.abs(deviationOf(h)) > DEVIATION_THRESHOLD) overClientIds[h.client_id] = true;
+    });
+    var overCount = Object.keys(overClientIds).length;
+
+    var latestByName = {};
+    clients.forEach(function (c) {
+      var existing = latestByName[c.name];
+      if (!existing || c.review_date > existing.review_date) latestByName[c.name] = c;
+    });
+    var overdueCount = Object.keys(latestByName).filter(function (name) {
+      return daysSince(latestByName[name].review_date) >= OVERDUE_DAYS;
+    }).length;
+
+    box.innerHTML =
+      '<div class="stat-tile"><div class="stat-value">' + totalCount + '</div><div class="stat-label">전체 고객</div></div>' +
+      '<div class="stat-tile' + (overCount > 0 ? ' over' : '') + '"><div class="stat-value">' + overCount + '</div><div class="stat-label">이탈 초과 고객</div></div>' +
+      '<div class="stat-tile' + (overdueCount > 0 ? ' over' : '') + '"><div class="stat-value">' + overdueCount + '</div><div class="stat-label">점검 밀린 고객</div></div>';
+  }
 
   // ---- header ----
   function renderHeader() {
@@ -104,6 +134,7 @@
     renderHoldingPanel();
     renderDeviationCards();
     renderReminderList();
+    renderKpis();
   });
 
   document.getElementById("client-cards").addEventListener("click", async function (e) {
@@ -121,6 +152,7 @@
       renderDeviationCards();
       renderRebalanceList();
       renderReminderList();
+      renderKpis();
     } else if (card) {
       selectedClientId = card.getAttribute("data-id");
       renderClientCards();
@@ -134,6 +166,23 @@
     return holdings.filter(function (h) { return h.client_id === selectedClientId; });
   }
 
+  var WEIGHT_SUM_TOLERANCE = 0.05; // absolute %p slack around 100 before flagging a bad sum
+
+  function renderSumCheck(rows) {
+    var box = document.getElementById("holding-sum");
+    if (rows.length === 0) {
+      box.innerHTML = "";
+      return;
+    }
+    var actualSum = rows.reduce(function (s, h) { return s + Number(h.actual_weight); }, 0);
+    var targetSum = rows.reduce(function (s, h) { return s + Number(h.target_weight); }, 0);
+    var actualOff = Math.abs(actualSum - 100) > WEIGHT_SUM_TOLERANCE;
+    var targetOff = Math.abs(targetSum - 100) > WEIGHT_SUM_TOLERANCE;
+    box.innerHTML =
+      '<span>보유비중 합계 <strong>' + fmtWeight(actualSum) + '%</strong>' + (actualOff ? ' <span class="tag over">100% 아님</span>' : '') + '</span>' +
+      '<span>목표비중 합계 <strong>' + fmtWeight(targetSum) + '%</strong>' + (targetOff ? ' <span class="tag over">100% 아님</span>' : '') + '</span>';
+  }
+
   function renderHoldingPanel() {
     var sub = document.getElementById("holding-panel-sub");
     var selected = clients.find(function (c) { return c.id === selectedClientId; });
@@ -145,18 +194,21 @@
     var rows = selectedClientHoldings();
     if (!selected) {
       list.innerHTML = "";
+      renderSumCheck([]);
       return;
     }
     if (rows.length === 0) {
       list.innerHTML = '<li class="empty-state">등록된 자산군이 없습니다. 위에서 추가해보세요.</li>';
+      renderSumCheck([]);
       return;
     }
+    renderSumCheck(rows);
     list.innerHTML = rows.map(function (h) {
       if (h.id === editingHoldingId) {
         return (
           '<li class="holding-item editing" data-id="' + h.id + '">' +
             '<form class="add-form inline-edit-form" data-action="save-holding-edit" data-id="' + h.id + '">' +
-              '<input class="asset-name-input" name="asset_class" type="text" value="' + escapeAttr(h.asset_class) + '" required>' +
+              '<input class="asset-name-input" name="asset_class" type="text" list="asset-class-options" value="' + escapeAttr(h.asset_class) + '" required>' +
               '<input class="weight-input" name="actual_weight" type="number" step="0.1" min="0" max="100" value="' + escapeAttr(h.actual_weight) + '" required>' +
               '<input class="weight-input" name="target_weight" type="number" step="0.1" min="0" max="100" value="' + escapeAttr(h.target_weight) + '" required>' +
               '<div class="edit-actions">' +
@@ -186,6 +238,19 @@
     var res = await db.from("holdings").select("*").order("created_at", { ascending: true });
     if (res.error) { reportError(res.error); return; }
     holdings = res.data;
+    renderAssetClassOptions();
+  }
+
+  // 자산군명 입력 자동완성 — 기본 자산군 + 그동안 입력했던 자산군명을 후보로 제공
+  function renderAssetClassOptions() {
+    var seen = {};
+    var names = [];
+    DEFAULT_ASSET_CLASSES.concat(holdings.map(function (h) { return h.asset_class; })).forEach(function (name) {
+      if (!seen[name]) { seen[name] = true; names.push(name); }
+    });
+    document.getElementById("asset-class-options").innerHTML = names.map(function (name) {
+      return '<option value="' + escapeAttr(name) + '">';
+    }).join("");
   }
 
   document.getElementById("holding-form").addEventListener("submit", async function (e) {
@@ -210,6 +275,7 @@
     renderHoldingPanel();
     renderDeviationCards();
     renderRebalanceList();
+    renderKpis();
   });
 
   document.getElementById("holding-list").addEventListener("click", async function (e) {
@@ -225,6 +291,7 @@
       renderHoldingPanel();
       renderDeviationCards();
       renderRebalanceList();
+      renderKpis();
     } else if (editBtn) {
       editingHoldingId = editBtn.getAttribute("data-id");
       renderHoldingPanel();
@@ -254,6 +321,7 @@
     renderHoldingPanel();
     renderDeviationCards();
     renderRebalanceList();
+    renderKpis();
   });
 
   // ---- deviation cards (우측 이탈률 결과, 선택된 고객 기준) ----
@@ -273,9 +341,15 @@
       var dev = deviationOf(h);
       var over = Math.abs(dev) > DEVIATION_THRESHOLD;
       var sign = dev > 0 ? "+" : "";
+      var actualPct = Math.max(0, Math.min(100, Number(h.actual_weight)));
+      var targetPct = Math.max(0, Math.min(100, Number(h.target_weight)));
       return (
         '<div class="deviation-card' + (over ? " over" : "") + '">' +
           '<div class="asset-name">' + escapeHtml(h.asset_class) + '</div>' +
+          '<div class="weight-bar">' +
+            '<div class="weight-bar-fill" style="width:' + actualPct + '%"></div>' +
+            '<div class="weight-bar-target" style="left:' + targetPct + '%"></div>' +
+          '</div>' +
           '<div class="stat-row"><span>보유</span><span>' + fmtWeight(h.actual_weight) + '%</span></div>' +
           '<div class="stat-row"><span>목표</span><span>' + fmtWeight(h.target_weight) + '%</span></div>' +
           '<div class="deviation-value">' + sign + fmtWeight(dev) + '%p' + (over ? ' · 리밸런싱 필요' : '') + '</div>' +
@@ -369,5 +443,6 @@
     renderDeviationCards();
     renderRebalanceList();
     renderReminderList();
+    renderKpis();
   })();
 })();
