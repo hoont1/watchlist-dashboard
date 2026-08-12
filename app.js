@@ -6,6 +6,7 @@
   var db = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
   var DEVIATION_THRESHOLD = 5; // %p
+  var OVERDUE_DAYS = 7; // "주 1회" cadence — flag a client once this many days pass since their last check
 
   function escapeHtml(str) {
     var div = document.createElement("div");
@@ -29,6 +30,12 @@
   }
   function deviationOf(h) {
     return Number(h.actual_weight) - Number(h.target_weight);
+  }
+  function daysSince(dateStr) {
+    var reviewDate = new Date(dateStr + "T00:00:00");
+    var today = new Date();
+    today.setHours(0, 0, 0, 0);
+    return Math.round((today - reviewDate) / 86400000);
   }
   function reportError(err) {
     console.error(err);
@@ -96,6 +103,7 @@
     await fetchClients();
     renderHoldingPanel();
     renderDeviationCards();
+    renderReminderList();
   });
 
   document.getElementById("client-cards").addEventListener("click", async function (e) {
@@ -112,6 +120,7 @@
       renderHoldingPanel();
       renderDeviationCards();
       renderRebalanceList();
+      renderReminderList();
     } else if (card) {
       selectedClientId = card.getAttribute("data-id");
       renderClientCards();
@@ -316,6 +325,42 @@
     }).join("");
   }
 
+  // ---- reminder list (우측, 마지막 점검일로부터 7일 이상 지난 고객) ----
+  function renderReminderList() {
+    var list = document.getElementById("reminder-list");
+    var latestByName = {};
+    clients.forEach(function (c) {
+      var existing = latestByName[c.name];
+      if (!existing || c.review_date > existing.review_date) {
+        latestByName[c.name] = c;
+      }
+    });
+
+    var overdue = Object.keys(latestByName).map(function (name) {
+      var c = latestByName[name];
+      return { client: c, days: daysSince(c.review_date) };
+    }).filter(function (e) { return e.days >= OVERDUE_DAYS; });
+
+    overdue.sort(function (a, b) { return b.days - a.days; });
+
+    if (overdue.length === 0) {
+      list.innerHTML = '<li class="empty-state">점검이 밀린 고객이 없습니다.</li>';
+      return;
+    }
+
+    list.innerHTML = overdue.map(function (e) {
+      return (
+        '<li class="rebalance-item">' +
+          '<div class="name-row">' +
+            '<span class="name">' + escapeHtml(e.client.name) + '</span>' +
+            '<span class="review-date">' + e.days + '일 경과</span>' +
+          '</div>' +
+          '<div class="reason">마지막 점검일 ' + escapeHtml(e.client.review_date) + '</div>' +
+        '</li>'
+      );
+    }).join("");
+  }
+
   // ---- init ----
   renderHeader();
   (async function init() {
@@ -323,5 +368,6 @@
     renderHoldingPanel();
     renderDeviationCards();
     renderRebalanceList();
+    renderReminderList();
   })();
 })();

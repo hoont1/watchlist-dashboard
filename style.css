@@ -350,7 +350,7 @@ button.btn-ghost:hover {
 .tag.over { background: var(--ink); color: var(--on-dark); }
 
 /* ---- rebalance list (우측 리밸런싱 필요 고객) ---- */
-#rebalance-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--space-sm); }
+#rebalance-list, #reminder-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--space-sm); }
 .rebalance-item {
   background: var(--canvas);
   border-radius: var(--radius-md);
