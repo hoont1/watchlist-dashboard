@@ -189,8 +189,6 @@
     return holdings.filter(function (h) { return h.client_id === selectedClientId; });
   }
 
-  var WEIGHT_SUM_TOLERANCE = 0.05; // absolute %p slack around 100 before flagging a bad sum
-
   function renderSumCheck(rows) {
     var box = document.getElementById("holding-sum");
     if (rows.length === 0) {
@@ -199,11 +197,9 @@
     }
     var actualSum = rows.reduce(function (s, h) { return s + Number(h.actual_weight); }, 0);
     var targetSum = rows.reduce(function (s, h) { return s + Number(h.target_weight); }, 0);
-    var actualOff = Math.abs(actualSum - 100) > WEIGHT_SUM_TOLERANCE;
-    var targetOff = Math.abs(targetSum - 100) > WEIGHT_SUM_TOLERANCE;
     box.innerHTML =
-      '<span>보유비중 합계 <strong>' + fmtWeight(actualSum) + '%</strong>' + (actualOff ? ' <span class="tag over">100% 아님</span>' : '') + '</span>' +
-      '<span>목표비중 합계 <strong>' + fmtWeight(targetSum) + '%</strong>' + (targetOff ? ' <span class="tag over">100% 아님</span>' : '') + '</span>';
+      '<span>보유비중 합계 <strong>' + fmtWeight(actualSum) + '%</strong></span>' +
+      '<span>목표비중 합계 <strong>' + fmtWeight(targetSum) + '%</strong></span>';
   }
 
   function renderHoldingPanel() {

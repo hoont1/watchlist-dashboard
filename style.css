@@ -438,19 +438,6 @@ button.btn-ghost:hover {
 }
 .sum-check strong { color: var(--ink); font-weight: 700; }
 
-/* status tag = category-button pill: canvas-soft bg by default, polarity-flipped when over */
-.tag {
-  display: inline-block;
-  font-size: 12px;
-  font-weight: 500;
-  padding: 4px 12px;
-  border-radius: var(--radius-pill);
-  margin-top: 8px;
-  background: var(--canvas-soft);
-  color: var(--ink);
-}
-.tag.over { background: var(--ink); color: var(--on-dark); }
-
 /* ---- rebalance list (우측 리밸런싱 필요 고객) ---- */
 #rebalance-list, #reminder-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--space-sm); }
 .rebalance-item {
