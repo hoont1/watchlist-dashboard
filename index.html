@@ -14,61 +14,83 @@
 <header class="topbar">
   <div class="date" id="today-date"></div>
   <h1>리밸런싱 체크 도구</h1>
+  <nav class="main-nav">
+    <button type="button" class="nav-link" data-nav="dashboard">대시보드</button>
+    <button type="button" class="nav-link" data-nav="clients">고객</button>
+  </nav>
 </header>
 
-<section class="kpi-row" id="kpi-row"></section>
+<main>
 
-<section class="panel client-bar">
-  <h2>고객 등록</h2>
-  <p class="sub">고객명과 점검일을 입력해 등록하고, 아래 카드를 클릭해 점검할 고객을 선택하세요.</p>
+  <section class="view" data-view="dashboard">
+    <section class="kpi-row" id="kpi-row"></section>
+    <div class="layout dashboard-layout">
+      <section class="panel">
+        <h2>리밸런싱 필요 고객</h2>
+        <p class="sub">이탈 기준(±5%p)을 초과한 고객입니다. 클릭하면 상세 페이지로 이동합니다.</p>
+        <ul id="rebalance-list"></ul>
+      </section>
 
-  <form class="add-form" id="client-form">
-    <input class="client-name-input" id="client-name" type="text" placeholder="고객명" required>
-    <input class="client-date-input" id="client-date" type="date" required>
-    <input class="client-assets-input" id="client-assets" type="number" step="0.1" min="0" placeholder="총자산(억원, 선택)">
-    <button type="submit">+ 고객 등록</button>
-  </form>
-
-  <input class="client-search-input" id="client-search" type="text" placeholder="고객명 검색">
-
-  <div class="card-grid" id="client-cards"></div>
-</section>
-
-<main class="layout">
-  <section class="panel">
-    <h2>자산군별 비중 입력</h2>
-    <p class="sub" id="holding-panel-sub">위에서 고객을 먼저 선택하세요.</p>
-
-    <form class="add-form" id="holding-form">
-      <input class="asset-name-input" id="holding-asset" type="text" list="asset-class-options" placeholder="자산군명 (예: 국내주식)" required>
-      <datalist id="asset-class-options"></datalist>
-      <input class="weight-input" id="holding-actual" type="number" step="0.1" min="0" max="100" placeholder="보유비중(%)" required>
-      <input class="weight-input" id="holding-target" type="number" step="0.1" min="0" max="100" placeholder="목표비중(%)" required>
-      <button type="submit">+ 추가</button>
-    </form>
-
-    <ul id="holding-list"></ul>
-    <div class="sum-check" id="holding-sum"></div>
+      <section class="panel">
+        <h2>다음 점검 리마인더</h2>
+        <p class="sub">고객별 다음 점검 예정일(마지막 점검일 + 7일)을 이번 달 달력에 표시합니다. 검게 표시된 날짜는 점검이 밀린 것입니다.</p>
+        <div id="reminder-list"></div>
+      </section>
+    </div>
   </section>
 
-  <aside>
-    <section class="panel">
-      <h2>이탈률 결과</h2>
-      <p class="sub">이탈 기준: 보유비중 − 목표비중이 ±5%p를 초과하면 리밸런싱 필요로 표시합니다. (막대: 보유비중, 세로선: 목표비중)</p>
-      <div class="card-grid" id="deviation-cards"></div>
+  <section class="view" data-view="clients">
+    <section class="panel client-bar">
+      <h2>고객 등록</h2>
+      <p class="sub">고객명과 점검일을 입력해 등록하고, 아래 카드를 클릭해 고객 상세 페이지로 이동하세요.</p>
+
+      <form class="add-form" id="client-form">
+        <input class="client-name-input" id="client-name" type="text" placeholder="고객명" required>
+        <input class="client-date-input" id="client-date" type="date" required>
+        <input class="client-assets-input" id="client-assets" type="number" step="0.1" min="0" placeholder="총자산(억원, 선택)">
+        <button type="submit">+ 고객 등록</button>
+      </form>
+
+      <input class="client-search-input" id="client-search" type="text" placeholder="고객명 검색">
+
+      <div class="card-grid" id="client-cards"></div>
+    </section>
+  </section>
+
+  <section class="view" data-view="client-detail">
+    <section class="panel client-detail-header">
+      <button type="button" class="btn-ghost back-btn" data-nav="clients">← 고객 목록</button>
+      <h2 id="detail-client-name"></h2>
+      <p class="sub" id="detail-client-meta"></p>
     </section>
 
-    <section class="panel">
-      <h2>리밸런싱 필요 고객</h2>
-      <ul id="rebalance-list"></ul>
-    </section>
+    <div class="layout">
+      <section class="panel">
+        <h2>자산군별 비중 입력</h2>
+        <p class="sub" id="holding-panel-sub">위에서 고객을 먼저 선택하세요.</p>
 
-    <section class="panel">
-      <h2>다음 점검 리마인더</h2>
-      <p class="sub">고객별 다음 점검 예정일(마지막 점검일 + 7일)을 이번 달 달력에 표시합니다. 검게 표시된 날짜는 점검이 밀린 것입니다.</p>
-      <div id="reminder-list"></div>
-    </section>
-  </aside>
+        <form class="add-form" id="holding-form">
+          <input class="asset-name-input" id="holding-asset" type="text" list="asset-class-options" placeholder="자산군명 (예: 국내주식)" required>
+          <datalist id="asset-class-options"></datalist>
+          <input class="weight-input" id="holding-actual" type="number" step="0.1" min="0" max="100" placeholder="보유비중(%)" required>
+          <input class="weight-input" id="holding-target" type="number" step="0.1" min="0" max="100" placeholder="목표비중(%)" required>
+          <button type="submit">+ 추가</button>
+        </form>
+
+        <ul id="holding-list"></ul>
+        <div class="sum-check" id="holding-sum"></div>
+      </section>
+
+      <aside>
+        <section class="panel">
+          <h2>이탈률 결과</h2>
+          <p class="sub">이탈 기준: 보유비중 − 목표비중이 ±5%p를 초과하면 리밸런싱 필요로 표시합니다. (막대: 보유비중, 세로선: 목표비중)</p>
+          <div class="card-grid" id="deviation-cards"></div>
+        </section>
+      </aside>
+    </div>
+  </section>
+
 </main>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>

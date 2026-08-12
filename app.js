@@ -152,12 +152,10 @@
     }).select().single();
     if (res.error) { reportError(res.error); return; }
     this.reset();
-    selectedClientId = res.data.id;
     await fetchClients();
-    renderHoldingPanel();
-    renderDeviationCards();
     renderReminderList();
     renderKpis();
+    location.hash = "#/clients/" + res.data.id;
   });
 
   document.getElementById("client-cards").addEventListener("click", async function (e) {
@@ -171,16 +169,12 @@
       if (selectedClientId === id) selectedClientId = null;
       await fetchClients();
       await fetchHoldings();
-      renderHoldingPanel();
-      renderDeviationCards();
+      renderClientCards();
       renderRebalanceList();
       renderReminderList();
       renderKpis();
     } else if (card) {
-      selectedClientId = card.getAttribute("data-id");
-      renderClientCards();
-      renderHoldingPanel();
-      renderDeviationCards();
+      location.hash = "#/clients/" + card.getAttribute("data-id");
     }
   });
 
@@ -418,7 +412,7 @@
         return escapeHtml(i.h.asset_class) + " " + sign + fmtWeight(i.dev) + "%p";
       }).join(", ");
       return (
-        '<li class="rebalance-item">' +
+        '<li class="rebalance-item" data-action="goto-client" data-id="' + e.client.id + '">' +
           '<div class="name-row">' +
             '<span class="name">' + escapeHtml(e.client.name) + '</span>' +
             '<span class="review-date">점검일 ' + escapeHtml(e.client.review_date) + '</span>' +
@@ -428,6 +422,11 @@
       );
     }).join("");
   }
+
+  document.getElementById("rebalance-list").addEventListener("click", function (e) {
+    var item = e.target.closest('[data-action="goto-client"]');
+    if (item) location.hash = "#/clients/" + item.getAttribute("data-id");
+  });
 
   // ---- reminder list (우측, 마지막 점검일로부터 7일 이상 지난 고객) ----
   function addDays(dateStr, days) {
@@ -494,14 +493,64 @@
       '<div class="calendar-grid">' + cellsHtml + '</div>';
   }
 
+  // ---- client detail header (고객 상세 페이지 상단: 이름/점검일/총자산) ----
+  function renderClientDetailHeader(client) {
+    document.getElementById("detail-client-name").textContent = client.name;
+    document.getElementById("detail-client-meta").textContent =
+      "점검일 " + client.review_date + (client.total_assets != null ? " · 총자산 " + fmtWeight(client.total_assets) + "억원" : "");
+  }
+
+  // ---- routing (해시 기반 페이지 전환: #/, #/clients, #/clients/:id) ----
+  function parseRoute() {
+    var parts = location.hash.replace(/^#\/?/, "").split("/").filter(Boolean);
+    if (parts[0] === "clients" && parts[1]) return { view: "client-detail", clientId: parts[1] };
+    if (parts[0] === "clients") return { view: "clients" };
+    return { view: "dashboard" };
+  }
+
+  function showView(view) {
+    document.querySelectorAll(".view").forEach(function (section) {
+      section.classList.toggle("active", section.getAttribute("data-view") === view);
+    });
+    document.querySelectorAll(".nav-link").forEach(function (btn) {
+      var target = btn.getAttribute("data-nav");
+      var active = target === view || (target === "clients" && view === "client-detail");
+      btn.classList.toggle("active", active);
+    });
+  }
+
+  function renderRoute() {
+    var route = parseRoute();
+    if (route.view === "client-detail") {
+      var client = clients.find(function (c) { return c.id === route.clientId; });
+      if (!client) { location.hash = "#/clients"; return; }
+      selectedClientId = route.clientId;
+      renderClientDetailHeader(client);
+      renderHoldingPanel();
+      renderDeviationCards();
+    } else if (route.view === "clients") {
+      selectedClientId = null;
+      renderClientCards();
+    } else {
+      renderKpis();
+      renderRebalanceList();
+      renderReminderList();
+    }
+    showView(route.view);
+  }
+
+  window.addEventListener("hashchange", renderRoute);
+  document.addEventListener("click", function (e) {
+    var navBtn = e.target.closest("[data-nav]");
+    if (!navBtn) return;
+    var target = navBtn.getAttribute("data-nav");
+    location.hash = target === "dashboard" ? "#/" : "#/" + target;
+  });
+
   // ---- init ----
   renderHeader();
   (async function init() {
     await Promise.all([fetchClients(), fetchHoldings()]);
-    renderHoldingPanel();
-    renderDeviationCards();
-    renderRebalanceList();
-    renderReminderList();
-    renderKpis();
+    renderRoute();
   })();
 })();

@@ -66,6 +66,41 @@ body {
   color: var(--ink);
 }
 
+/* ---- main nav (대시보드 / 고객 페이지 전환) ---- */
+.main-nav {
+  display: flex;
+  gap: var(--space-sm);
+  margin-top: var(--space-lg);
+}
+.nav-link {
+  background: var(--canvas);
+  color: var(--ink);
+  border: 1px solid var(--surface-pressed);
+  min-height: 40px;
+  padding: 0 var(--space-xl);
+}
+.nav-link:hover { background: var(--canvas-soft); }
+.nav-link.active {
+  background: var(--ink);
+  color: var(--on-dark);
+  border-color: var(--ink);
+}
+
+/* ---- view switching (해시 라우팅으로 전환되는 페이지 단위) ---- */
+.view { display: none; }
+.view.active { display: block; }
+
+/* ---- client detail header (뒤로가기 + 고객명/점검일/총자산) ---- */
+.client-detail-header {
+  margin: var(--space-2xl) clamp(16px, 4vw, 32px) 0;
+  max-width: 1200px;
+  margin-left: auto;
+  margin-right: auto;
+}
+@media (max-width: 640px) { .client-detail-header { margin: var(--space-lg) 16px 0; } }
+.back-btn { margin-bottom: var(--space-md); }
+.client-detail-header h2 { font-size: 24px; line-height: 32px; }
+
 /* ---- KPI row (stat tiles, summary at a glance) ---- */
 .kpi-row {
   display: flex;
@@ -115,6 +150,8 @@ body {
   margin: 0 auto;
   align-items: start;
 }
+.dashboard-layout { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+
 @media (max-width: 640px) {
   .layout {
     grid-template-columns: 1fr;
@@ -445,7 +482,10 @@ button.btn-ghost:hover {
   border-radius: var(--radius-md);
   padding: var(--space-lg);
   border: 1px solid var(--surface-pressed);
+  cursor: pointer;
+  transition: border-color 0.15s ease;
 }
+.rebalance-item:hover { border-color: var(--ink); }
 .rebalance-item .name-row {
   display: flex;
   justify-content: space-between;
