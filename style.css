@@ -1,159 +1,158 @@
-/* Design tokens — derived from DESIGN.md (Ferrari-inspired system) */
+/* Design tokens — derived from DESIGN-uber.md (Uber-inspired system) */
 :root {
-  --canvas:          #181818; /* near-black page floor */
-  --canvas-elevated: #303030; /* panels / cards on dark canvas */
-  --hairline:        #303030; /* 1px divider on canvas (same hex by design) */
-  --ink:             #ffffff;
-  --body:            #969696; /* default running text on dark */
-  --muted:           #666666; /* sub-titles, captions on dark */
-  --muted-soft:      #8f8f8f; /* placeholder / tertiary text */
-  --primary:         #da291c; /* Rosso Corsa — reserved for primary CTAs only */
-  --primary-active:  #b01e0a;
-  --semantic-warning:#f13a2c; /* destructive-action hover, over-threshold deviation */
-  --semantic-ok:     #3fb950; /* within-threshold deviation */
-  --focus-ring:      #f6e500; /* accent-yellow, documented as the global focus-ring color */
-
-  /* nested item trays sit one brightness-step darker than their elevated panel,
-     since the raw hairline hex is identical to canvas-elevated and would be
-     invisible drawn on top of it */
-  --tray-border: rgba(255, 255, 255, 0.12);
+  --primary:        #000000; /* the brand's only conversion colour */
+  --on-primary:     #ffffff;
+  --ink:            #000000;
+  --body:           #5e5e5e;
+  --mute:           #afafaf;
+  --hairline-mid:   #4b4b4b;
+  --canvas:         #ffffff;
+  --canvas-soft:    #efefef;
+  --canvas-softer:  #f3f3f3;
+  --surface-pressed:#e2e2e2;
+  --link:           #0000ee;
+  --on-dark:        #ffffff;
+  --black-elevated: #282828; /* hover state for ink surfaces */
 
   --radius-none: 0px;
-  --radius-sm:   4px;   /* form inputs only */
-  --radius-full: 9999px; /* badge pill only */
+  --radius-md:   8px;   /* form inputs */
+  --radius-lg:   12px;  /* secondary card chrome */
+  --radius-xl:   16px;  /* canonical card radius */
+  --radius-pill: 999px; /* the brand's signature interactive shape */
+  --radius-full: 9999px;
 
-  --space-xxxs: 4px;
-  --space-xxs:  8px;
-  --space-xs:   16px;
-  --space-sm:   24px;
-  --space-md:   32px;
-  --space-lg:   48px;
+  --space-xxs: 4px;
+  --space-xs:  6px;
+  --space-sm:  8px;
+  --space-md:  12px;
+  --space-lg:  16px;
+  --space-xl:  20px;
+  --space-2xl: 24px;
+  --space-3xl: 32px;
 
-  --font: -apple-system, system-ui, "Segoe UI", Arial, sans-serif; /* FerrariSans fallback stack */
+  --font-display: "Inter", system-ui, "Helvetica Neue", Arial, sans-serif; /* UberMove substitute */
+  --font-text:    "Inter", system-ui, "Helvetica Neue", Arial, sans-serif; /* UberMoveText substitute */
 }
 
 * { box-sizing: border-box; }
 
 body {
   margin: 0;
-  font-family: var(--font);
+  font-family: var(--font-text);
+  font-size: 16px;
+  line-height: 24px;
   background: var(--canvas);
   color: var(--ink);
   -webkit-font-smoothing: antialiased;
 }
 
-/* ---- top bar ---- */
+/* ---- top bar = nav-bar ---- */
 .topbar {
-  padding: var(--space-md) clamp(16px, 4vw, 48px) var(--space-sm);
-  border-bottom: 1px solid var(--hairline);
+  padding: var(--space-lg) clamp(16px, 4vw, 32px) var(--space-md);
   background: var(--canvas);
 }
 .topbar .date {
-  font-size: 11px;
-  font-weight: 600;
-  line-height: 1.4;
-  letter-spacing: 1.1px;
-  text-transform: uppercase;
-  color: var(--muted-soft);
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 20px;
+  color: var(--mute);
 }
 .topbar h1 {
-  margin: 6px 0 0;
-  font-size: 26px;
-  font-weight: 500;
-  line-height: 1.3;
-  letter-spacing: 0.195px;
+  margin: 4px 0 0;
+  font-family: var(--font-display);
+  font-size: 32px;
+  font-weight: 700;
+  line-height: 40px;
   color: var(--ink);
 }
 
 /* ---- client bar (top-of-page registration panel) ---- */
 .client-bar {
-  margin: var(--space-sm) clamp(16px, 4vw, 48px) 0;
-  max-width: 1280px;
+  margin: var(--space-2xl) clamp(16px, 4vw, 32px) 0;
+  max-width: 1200px;
   margin-left: auto;
   margin-right: auto;
 }
-.client-bar,
-.topbar { }
 
 /* ---- layout ---- */
 .layout {
   display: grid;
   grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr);
-  gap: var(--space-sm);
-  padding: var(--space-sm) clamp(16px, 4vw, 48px) var(--space-lg);
-  max-width: 1280px;
+  gap: var(--space-2xl);
+  padding: var(--space-2xl) clamp(16px, 4vw, 32px) var(--space-3xl);
+  max-width: 1200px;
   margin: 0 auto;
   align-items: start;
 }
 @media (max-width: 640px) {
   .layout {
     grid-template-columns: 1fr;
-    gap: var(--space-xs);
-    padding: var(--space-xs) 16px var(--space-md);
+    gap: var(--space-lg);
+    padding: var(--space-lg) 16px var(--space-2xl);
   }
-  .client-bar { margin: var(--space-xs) 16px 0; }
-  .topbar { padding: var(--space-sm) 16px var(--space-xs); }
-  .topbar h1 { font-size: 20px; }
+  .client-bar { margin: var(--space-lg) 16px 0; }
+  .topbar { padding: var(--space-md) 16px var(--space-sm); }
+  .topbar h1 { font-size: 24px; line-height: 32px; }
 }
 
-/* ---- panel ---- */
+/* ---- panel = card-soft-tinted (gray sub-region callout on the white canvas) ---- */
 .panel {
-  background: var(--canvas-elevated);
-  border-radius: var(--radius-none);
-  padding: var(--space-sm);
+  background: var(--canvas-soft);
+  border-radius: var(--radius-xl);
+  padding: var(--space-2xl);
 }
-.panel + .panel { margin-top: var(--space-xs); }
+.panel + .panel { margin-top: var(--space-lg); }
 
 .panel h2 {
   margin: 0 0 4px;
-  font-size: 18px;
+  font-family: var(--font-display);
+  font-size: 20px;
   font-weight: 700;
-  line-height: 1.2;
-  letter-spacing: 0;
+  line-height: 28px;
   color: var(--ink);
 }
 .panel .sub {
-  margin: 0 0 var(--space-xs);
-  font-size: 13px;
+  margin: 0 0 var(--space-lg);
+  font-size: 14px;
   font-weight: 400;
-  line-height: 1.5;
+  line-height: 20px;
   color: var(--body);
 }
 
-/* ---- forms (add + inline edit) ---- */
+/* ---- forms (add + inline edit) — text-input-on-soft: white field punched through the gray panel ---- */
 form.add-form {
   display: flex;
   flex-wrap: wrap;
-  gap: var(--space-xxs);
-  margin-bottom: var(--space-xs);
-  padding-bottom: var(--space-xs);
-  border-bottom: 1px solid var(--tray-border);
+  gap: var(--space-sm);
+  margin-bottom: var(--space-lg);
+  padding-bottom: var(--space-lg);
+  border-bottom: 1px solid var(--surface-pressed);
 }
 form.add-form input,
 form.add-form select,
 form.add-form textarea {
-  font: inherit;
-  font-size: 14px;
+  font-family: var(--font-text);
+  font-size: 16px;
   font-weight: 400;
-  line-height: 1.5;
-  padding: 12px 16px;
+  line-height: 24px;
+  padding: var(--space-lg);
   min-height: 48px;
-  border: 1px solid var(--tray-border);
-  border-radius: var(--radius-sm);
+  border: 1px solid var(--surface-pressed);
+  border-radius: var(--radius-md);
   background: var(--canvas);
   color: var(--ink);
   transition: border-color 0.15s ease;
 }
 form.add-form input::placeholder,
 form.add-form textarea::placeholder {
-  color: var(--muted-soft);
+  color: var(--mute);
 }
 form.add-form input:focus,
 form.add-form select:focus,
 form.add-form textarea:focus {
-  outline: 2px solid var(--focus-ring);
+  outline: 2px solid var(--ink);
   outline-offset: 1px;
-  border-color: var(--focus-ring);
+  border-color: var(--ink);
 }
 .client-name-input { flex: 1 1 160px; min-width: 120px; }
 .client-date-input { flex: 0 1 170px; }
@@ -167,48 +166,47 @@ form.add-form textarea:focus {
 }
 .edit-actions {
   display: flex;
-  gap: var(--space-xxs);
+  gap: var(--space-sm);
   margin-top: 4px;
   flex: 1 1 100%;
 }
 
-/* ---- buttons ---- */
+/* ---- buttons — button-primary: the canonical black pill ---- */
 button {
-  font-family: inherit;
-  font-size: 14px;
-  font-weight: 700;
-  line-height: 1;
-  letter-spacing: 1.4px;
-  text-transform: uppercase;
+  font-family: var(--font-text);
+  font-size: 16px;
+  font-weight: 500;
+  line-height: 20px;
   border: 1px solid transparent;
-  border-radius: var(--radius-none);
-  padding: 0 32px;
+  border-radius: var(--radius-pill);
+  padding: 0 var(--space-2xl);
   min-height: 48px;
   cursor: pointer;
   background: var(--primary);
-  color: var(--ink);
+  color: var(--on-primary);
   display: inline-flex;
   align-items: center;
   justify-content: center;
   white-space: nowrap;
   transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease;
 }
-button:hover { background: var(--primary-active); }
+button:hover { background: var(--black-elevated); }
 button:focus-visible {
-  outline: 2px solid var(--focus-ring);
+  outline: 2px solid var(--ink);
   outline-offset: 2px;
 }
+/* button-secondary: the white pill paired with the black primary */
 button.btn-ghost {
-  background: transparent;
+  background: var(--canvas);
   color: var(--ink);
-  border-color: var(--ink);
+  border-color: var(--surface-pressed);
 }
 button.btn-ghost:hover {
-  background: rgba(255, 255, 255, 0.08);
+  background: var(--canvas-soft);
 }
 
-/* per-row action buttons (edit / delete) — no chromatic color; Rosso Corsa stays
-   reserved for primary CTAs only, per DESIGN.md's scarcity rule */
+/* per-row action buttons (edit / delete) — no chromatic color; the brand has no
+   accent beyond black/white/gray, so emphasis comes from color value, not hue */
 .card-actions {
   display: flex;
   gap: 2px;
@@ -218,25 +216,23 @@ button.btn-ghost:hover {
 .delete-btn {
   background: none;
   border: none;
-  color: var(--muted-soft);
+  color: var(--mute);
   cursor: pointer;
   font-size: 15px;
   font-weight: 400;
-  letter-spacing: normal;
-  text-transform: none;
   line-height: 1;
   padding: 8px;
   min-height: 0;
   transition: color 0.15s ease;
 }
 .icon-btn:hover { color: var(--ink); }
-.delete-btn:hover { color: var(--semantic-warning); }
+.delete-btn:hover { color: var(--ink); text-decoration: underline; }
 
-/* ---- card grid (recessed trays, one brightness-step darker than the panel) ---- */
+/* ---- card grid ---- */
 .card-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
-  gap: var(--space-xs);
+  gap: var(--space-lg);
 }
 .card-top {
   display: flex;
@@ -245,42 +241,52 @@ button.btn-ghost:hover {
   gap: 8px;
 }
 
-/* ---- client card ---- */
+/* ---- client card — selection uses the brand's own emphasis device: a polarity
+   flip to full black, the same move the doc uses for promo-card-on-dark ---- */
 .client-card {
   background: var(--canvas);
-  border-radius: var(--radius-none);
-  padding: var(--space-xs);
-  border: 2px solid transparent;
+  border-radius: var(--radius-lg);
+  padding: var(--space-lg);
+  border: 1px solid var(--surface-pressed);
   cursor: pointer;
-  transition: border-color 0.15s ease;
+  transition: background-color 0.15s ease, color 0.15s ease, border-color 0.15s ease;
 }
-.client-card:hover { border-color: var(--tray-border); }
-.client-card.selected { border-color: var(--focus-ring); }
+.client-card:hover { border-color: var(--ink); }
+.client-card.selected {
+  background: var(--ink);
+  border-color: var(--ink);
+  color: var(--on-dark);
+}
 .client-card .name {
   font-size: 16px;
   font-weight: 500;
-  line-height: 1.4;
-  letter-spacing: 0.08px;
-  color: var(--ink);
+  line-height: 20px;
+  color: inherit;
   word-break: break-word;
 }
 .client-card .review-date {
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 400;
-  line-height: 1.4;
+  line-height: 20px;
   color: var(--body);
-  font-variant-numeric: tabular-nums;
 }
+.client-card.selected .review-date { color: var(--mute); }
+.client-card.selected .icon-btn,
+.client-card.selected .delete-btn { color: var(--mute); }
+.client-card.selected .icon-btn:hover,
+.client-card.selected .delete-btn:hover { color: var(--on-dark); }
 
 /* ---- holding list (좌측 자산군 입력 결과) ---- */
-#holding-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--space-xxs); }
+#holding-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--space-sm); }
 .holding-item {
   display: flex;
   justify-content: space-between;
   align-items: center;
   gap: 8px;
   background: var(--canvas);
-  padding: var(--space-xs);
+  border-radius: var(--radius-md);
+  padding: var(--space-lg);
+  border: 1px solid var(--surface-pressed);
 }
 .holding-item .asset-name {
   font-size: 14px;
@@ -292,22 +298,27 @@ button.btn-ghost:hover {
   font-size: 13px;
   font-weight: 400;
   color: var(--body);
-  font-variant-numeric: tabular-nums;
   margin-top: 2px;
 }
 
-/* ---- deviation cards (우측 이탈률 결과) ---- */
+/* ---- deviation cards (우측 이탈률 결과) — within-threshold stays white/flat;
+   over-threshold polarity-flips to black, the brand's documented depth cue for
+   "this needs attention", instead of introducing an off-brand red ---- */
 .deviation-card {
   background: var(--canvas);
-  border-radius: var(--radius-none);
-  padding: var(--space-xs);
-  border-left: 3px solid var(--semantic-ok);
+  border-radius: var(--radius-lg);
+  padding: var(--space-lg);
+  border: 1px solid var(--surface-pressed);
 }
-.deviation-card.over { border-left-color: var(--semantic-warning); }
+.deviation-card.over {
+  background: var(--ink);
+  color: var(--on-dark);
+  border-color: var(--ink);
+}
 .deviation-card .asset-name {
   font-size: 14px;
   font-weight: 500;
-  color: var(--ink);
+  color: inherit;
   margin-bottom: 6px;
   word-break: break-word;
 }
@@ -316,37 +327,35 @@ button.btn-ghost:hover {
   justify-content: space-between;
   font-size: 12px;
   color: var(--body);
-  font-variant-numeric: tabular-nums;
 }
+.deviation-card.over .stat-row { color: var(--mute); }
 .deviation-card .deviation-value {
-  font-size: 15px;
+  font-size: 16px;
   font-weight: 700;
-  color: var(--semantic-ok);
+  color: inherit;
   margin-top: 6px;
-  font-variant-numeric: tabular-nums;
 }
-.deviation-card.over .deviation-value { color: var(--semantic-warning); }
 
-/* reason / status tag = badge-pill component: canvas-elevated bg, uppercase caption, full radius */
+/* status tag = category-button pill: canvas-soft bg by default, polarity-flipped when over */
 .tag {
   display: inline-block;
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 1.1px;
-  text-transform: uppercase;
+  font-size: 12px;
+  font-weight: 500;
   padding: 4px 12px;
-  border-radius: var(--radius-full);
+  border-radius: var(--radius-pill);
   margin-top: 8px;
-  background: var(--canvas-elevated);
+  background: var(--canvas-soft);
   color: var(--ink);
 }
-.tag.over { background: var(--semantic-warning); }
+.tag.over { background: var(--ink); color: var(--on-dark); }
 
 /* ---- rebalance list (우측 리밸런싱 필요 고객) ---- */
-#rebalance-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--space-xxs); }
+#rebalance-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--space-sm); }
 .rebalance-item {
   background: var(--canvas);
-  padding: var(--space-xs);
+  border-radius: var(--radius-md);
+  padding: var(--space-lg);
+  border: 1px solid var(--surface-pressed);
 }
 .rebalance-item .name-row {
   display: flex;
@@ -361,8 +370,7 @@ button.btn-ghost:hover {
 }
 .rebalance-item .review-date {
   font-size: 12px;
-  color: var(--muted-soft);
-  font-variant-numeric: tabular-nums;
+  color: var(--mute);
 }
 .rebalance-item .reason {
   margin-top: 6px;
@@ -374,6 +382,6 @@ button.btn-ghost:hover {
   font-size: 14px;
   font-weight: 400;
   color: var(--body);
-  padding: var(--space-xs) 4px;
+  padding: var(--space-lg) 4px;
   text-align: center;
 }
