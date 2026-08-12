@@ -1,0 +1,361 @@
+/* Design tokens — derived from DESIGN.md (Ferrari-inspired system) */
+:root {
+  --canvas:          #181818; /* near-black page floor */
+  --canvas-elevated: #303030; /* panels / cards on dark canvas */
+  --hairline:        #303030; /* 1px divider on canvas (same hex by design) */
+  --ink:             #ffffff;
+  --body:            #969696; /* default running text on dark */
+  --muted:           #666666; /* sub-titles, captions on dark */
+  --muted-soft:      #8f8f8f; /* placeholder / tertiary text */
+  --primary:         #da291c; /* Rosso Corsa — reserved for primary CTAs only */
+  --primary-active:  #b01e0a;
+  --semantic-warning:#f13a2c; /* destructive-action hover only */
+  --focus-ring:      #f6e500; /* accent-yellow, documented as the global focus-ring color */
+
+  /* nested item trays sit one brightness-step darker than their elevated panel,
+     since the raw hairline hex is identical to canvas-elevated and would be
+     invisible drawn on top of it */
+  --tray-border: rgba(255, 255, 255, 0.12);
+
+  --radius-none: 0px;
+  --radius-sm:   4px;   /* form inputs only */
+  --radius-full: 9999px; /* badge pill only */
+
+  --space-xxxs: 4px;
+  --space-xxs:  8px;
+  --space-xs:   16px;
+  --space-sm:   24px;
+  --space-md:   32px;
+  --space-lg:   48px;
+
+  --font: -apple-system, system-ui, "Segoe UI", Arial, sans-serif; /* FerrariSans fallback stack */
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  font-family: var(--font);
+  background: var(--canvas);
+  color: var(--ink);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ---- top bar ---- */
+.topbar {
+  padding: var(--space-md) clamp(16px, 4vw, 48px) var(--space-sm);
+  border-bottom: 1px solid var(--hairline);
+  background: var(--canvas);
+}
+.topbar .date {
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.4;
+  letter-spacing: 1.1px;
+  text-transform: uppercase;
+  color: var(--muted-soft);
+}
+.topbar h1 {
+  margin: 6px 0 0;
+  font-size: 26px;
+  font-weight: 500;
+  line-height: 1.3;
+  letter-spacing: 0.195px;
+  color: var(--ink);
+}
+
+/* ---- layout ---- */
+.layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr);
+  gap: var(--space-sm);
+  padding: var(--space-sm) clamp(16px, 4vw, 48px) var(--space-lg);
+  max-width: 1280px;
+  margin: 0 auto;
+  align-items: start;
+}
+@media (max-width: 640px) {
+  .layout {
+    grid-template-columns: 1fr;
+    gap: var(--space-xs);
+    padding: var(--space-xs) 16px var(--space-md);
+  }
+  .topbar { padding: var(--space-sm) 16px var(--space-xs); }
+  .topbar h1 { font-size: 20px; }
+}
+
+/* ---- panel (관심종목 / 메모 / 체크리스트 — each its own elevated surface) ---- */
+.panel {
+  background: var(--canvas-elevated);
+  border-radius: var(--radius-none);
+  padding: var(--space-sm);
+}
+.panel + .panel { margin-top: var(--space-xs); }
+
+.panel h2 {
+  margin: 0 0 4px;
+  font-size: 18px;
+  font-weight: 700;
+  line-height: 1.2;
+  letter-spacing: 0;
+  color: var(--ink);
+}
+.panel .sub {
+  margin: 0 0 var(--space-xs);
+  font-size: 13px;
+  font-weight: 400;
+  line-height: 1.5;
+  color: var(--body);
+}
+
+/* ---- forms (add + inline edit) ---- */
+form.add-form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-xxs);
+  margin-bottom: var(--space-xs);
+  padding-bottom: var(--space-xs);
+  border-bottom: 1px solid var(--tray-border);
+}
+form.add-form input,
+form.add-form select,
+form.add-form textarea {
+  font: inherit;
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 1.5;
+  padding: 12px 16px;
+  min-height: 48px;
+  border: 1px solid var(--tray-border);
+  border-radius: var(--radius-sm);
+  background: var(--canvas);
+  color: var(--ink);
+  transition: border-color 0.15s ease;
+}
+form.add-form input::placeholder,
+form.add-form textarea::placeholder {
+  color: var(--muted-soft);
+}
+form.add-form input:focus,
+form.add-form select:focus,
+form.add-form textarea:focus {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 1px;
+  border-color: var(--focus-ring);
+}
+.stock-name-input { flex: 1 1 140px; min-width: 100px; }
+.stock-code-input { flex: 0 1 100px; }
+.stock-reason-select { flex: 0 1 130px; }
+.stock-memo-input { flex: 1 1 100%; }
+.memo-textarea { flex: 1 1 100%; min-height: 64px; resize: vertical; font-family: inherit; }
+.check-input { flex: 1 1 auto; }
+
+.inline-edit-form {
+  border-bottom: none;
+  padding-bottom: 0;
+  margin-bottom: 0;
+}
+.edit-actions {
+  display: flex;
+  gap: var(--space-xxs);
+  margin-top: 4px;
+  flex: 1 1 100%;
+}
+
+/* ---- buttons ---- */
+button {
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: 1.4px;
+  text-transform: uppercase;
+  border: 1px solid transparent;
+  border-radius: var(--radius-none);
+  padding: 0 32px;
+  min-height: 48px;
+  cursor: pointer;
+  background: var(--primary);
+  color: var(--ink);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  white-space: nowrap;
+  transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+button:hover { background: var(--primary-active); }
+button:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+button.btn-ghost {
+  background: transparent;
+  color: var(--ink);
+  border-color: var(--ink);
+}
+button.btn-ghost:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+/* per-row action buttons (edit / delete) — no chromatic color; Rosso Corsa stays
+   reserved for primary CTAs only, per DESIGN.md's scarcity rule */
+.card-actions {
+  display: flex;
+  gap: 2px;
+  flex: none;
+}
+.icon-btn,
+.delete-btn {
+  background: none;
+  border: none;
+  color: var(--muted-soft);
+  cursor: pointer;
+  font-size: 15px;
+  font-weight: 400;
+  letter-spacing: normal;
+  text-transform: none;
+  line-height: 1;
+  padding: 8px;
+  min-height: 0;
+  transition: color 0.15s ease;
+}
+.icon-btn:hover { color: var(--ink); }
+.delete-btn:hover { color: var(--semantic-warning); }
+
+/* ---- watchlist cards (recessed trays, one brightness-step darker than the panel) ---- */
+.card-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+  gap: var(--space-xs);
+}
+.stock-card {
+  background: var(--canvas);
+  border-radius: var(--radius-none);
+  padding: var(--space-xs);
+}
+.stock-card .card-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 8px;
+}
+.stock-card .name {
+  font-size: 16px;
+  font-weight: 500;
+  line-height: 1.4;
+  letter-spacing: 0.08px;
+  color: var(--ink);
+  word-break: break-word;
+}
+.stock-card .code {
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 1.4;
+  color: var(--body);
+  font-variant-numeric: tabular-nums;
+}
+.stock-card .memo {
+  margin-top: 8px;
+  font-size: 13px;
+  font-weight: 400;
+  line-height: 1.5;
+  color: var(--body);
+  word-break: break-word;
+}
+
+/* reason tag = badge-pill component: canvas-elevated bg, uppercase caption, full radius */
+.tag {
+  display: inline-block;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 1.1px;
+  text-transform: uppercase;
+  padding: 4px 12px;
+  border-radius: var(--radius-full);
+  margin-top: 8px;
+  background: var(--canvas-elevated);
+  color: var(--ink);
+}
+
+/* ---- memo list (same recessed-tray treatment as watchlist cards) ---- */
+#memo-list, #checklist { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--space-xxs); }
+.memo-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 8px;
+  background: var(--canvas);
+  padding: var(--space-xs);
+}
+.memo-item .memo-body {
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 1.5;
+  color: var(--ink);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.memo-item .memo-time {
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 1.4;
+  color: var(--muted-soft);
+  display: block;
+  margin-bottom: 4px;
+}
+
+/* ---- checklist ---- */
+.check-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: var(--canvas);
+  padding: var(--space-xxs) var(--space-xs);
+}
+.check-label {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 1;
+  min-width: 0;
+  cursor: pointer;
+  padding: 4px 0;
+}
+.check-item input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--primary);
+  cursor: pointer;
+  flex: none;
+}
+.check-item .check-text {
+  flex: 1;
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 1.5;
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+.check-item.done .check-text {
+  color: var(--muted);
+  text-decoration: line-through;
+}
+.checklist-progress {
+  font-size: 13px;
+  font-weight: 400;
+  line-height: 1.5;
+  color: var(--body);
+  margin-bottom: var(--space-xxs);
+}
+.checklist-progress strong {
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.empty-state {
+  font-size: 14px;
+  font-weight: 400;
+  color: var(--body);
+  padding: var(--space-xs) 4px;
+  text-align: center;
+}

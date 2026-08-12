@@ -1,0 +1,18 @@
+# Deny by default — only the dashboard project files below are tracked.
+# This keeps the brokerage PDF, dummy xlsx data, and other local working
+# files in this folder out of the repo.
+*
+
+!.gitignore
+!index.html
+!style.css
+!app.js
+!DESIGN.md
+!CLAUDE.md
+!prd.md
+
+# Explicit safety net even though the whitelist above already excludes it —
+# never commit environment/secret files.
+.env
+.env.*
+*.env
