@@ -1,43 +1,12 @@
 (function () {
   "use strict";
 
-  var STORAGE = {
-    watchlist: "dashboard_watchlist_v1",
-    memos: "dashboard_memos_v1",
-    checklist: "dashboard_checklist_v1",
-    checklistDate: "dashboard_checklist_date_v1"
-  };
+  var SUPABASE_URL = "https://gbjozahbwvrdspskxxcx.supabase.co";
+  var SUPABASE_KEY = "sb_publishable_EdPru57DKX1iH7w6_F0K-A_CLb2u7Pu";
+  var db = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-  var REASONS = ["실적기대", "신규이슈", "장기관심", "기타"];
+  var DEVIATION_THRESHOLD = 5; // %p
 
-  // ---- storage helpers (fall back to in-memory if localStorage is blocked, e.g. some file:// contexts) ----
-  var memoryFallback = {};
-  var storageOk = true;
-  try {
-    var t = "__test__";
-    window.localStorage.setItem(t, "1");
-    window.localStorage.removeItem(t);
-  } catch (e) {
-    storageOk = false;
-  }
-
-  function loadJSON(key, fallback) {
-    if (!storageOk) return memoryFallback[key] || fallback;
-    try {
-      var raw = window.localStorage.getItem(key);
-      return raw ? JSON.parse(raw) : fallback;
-    } catch (e) {
-      return fallback;
-    }
-  }
-  function saveJSON(key, value) {
-    if (!storageOk) { memoryFallback[key] = value; return; }
-    try { window.localStorage.setItem(key, JSON.stringify(value)); } catch (e) {}
-  }
-
-  function uid() {
-    return Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
-  }
   function escapeHtml(str) {
     var div = document.createElement("div");
     div.textContent = str;
@@ -55,36 +24,22 @@
   function pad2(n) {
     return (n < 10 ? "0" : "") + n;
   }
-  function todayKey(d) {
-    return d.getFullYear() + "-" + pad2(d.getMonth() + 1) + "-" + pad2(d.getDate());
+  function fmtWeight(n) {
+    return Number(n).toFixed(1);
   }
-  function reasonOptionsHtml(selected) {
-    return REASONS.map(function (r) {
-      return '<option value="' + r + '"' + (r === selected ? " selected" : "") + '>' + r + '</option>';
-    }).join("");
+  function deviationOf(h) {
+    return Number(h.actual_weight) - Number(h.target_weight);
+  }
+  function reportError(err) {
+    console.error(err);
+    alert("저장소(Supabase)와 통신 중 오류가 발생했습니다: " + (err && err.message ? err.message : err));
   }
 
-  // ---- state ----
-  var watchlist = loadJSON(STORAGE.watchlist, []);
-  var memos = loadJSON(STORAGE.memos, []);
-  var checklist = loadJSON(STORAGE.checklist, [
-    { id: uid(), text: "전일 미국 증시 마감 시황 확인", done: false },
-    { id: uid(), text: "관심종목 공시/뉴스 확인", done: false },
-    { id: uid(), text: "오늘 발표 예정 지표/일정 확인", done: false }
-  ]);
-
-  var editingStockId = null;
-  var editingMemoId = null;
-  var editingCheckId = null;
-
-  // daily reset: uncheck items when the calendar day rolls over, keep the item text
-  var now = new Date();
-  var lastDate = loadJSON(STORAGE.checklistDate, null);
-  if (lastDate !== todayKey(now)) {
-    checklist.forEach(function (item) { item.done = false; });
-    saveJSON(STORAGE.checklistDate, todayKey(now));
-    saveJSON(STORAGE.checklist, checklist);
-  }
+  // ---- state (in-memory cache of the last fetch from Supabase) ----
+  var clients = [];
+  var holdings = []; // all holdings, across all clients — needed for the rebalance list
+  var selectedClientId = null;
+  var editingHoldingId = null;
 
   // ---- header ----
   function renderHeader() {
@@ -92,302 +47,281 @@
     var days = ["일", "월", "화", "수", "목", "금", "토"];
     var dateStr = d.getFullYear() + "년 " + (d.getMonth() + 1) + "월 " + d.getDate() + "일 (" + days[d.getDay()] + ")";
     document.getElementById("today-date").textContent = dateStr;
-
-    var hour = d.getHours();
-    var greeting;
-    if (hour < 9) greeting = "좋은 아침입니다, 오늘 하루도 힘내세요 ☀️";
-    else if (hour < 12) greeting = "안녕하세요, 시황 체크하고 하루 시작해볼까요 📈";
-    else if (hour < 18) greeting = "안녕하세요, 오후도 화이팅입니다 💪";
-    else greeting = "오늘 하루도 수고 많으셨습니다 🌙";
-    document.getElementById("greeting").textContent = greeting;
   }
 
-  // ---- watchlist ----
-  function isDuplicateStock(name, code, excludeId) {
-    var normName = name.trim().toLowerCase();
-    var normCode = (code || "").trim();
-    return watchlist.some(function (s) {
-      if (excludeId && s.id === excludeId) return false;
-      var sameName = s.name.trim().toLowerCase() === normName;
-      var sameCode = normCode !== "" && (s.code || "").trim() === normCode;
-      return sameName || sameCode;
-    });
-  }
-
-  function renderWatchlist() {
-    var box = document.getElementById("watchlist-cards");
-    if (watchlist.length === 0) {
-      box.innerHTML = '<div class="empty-state">아직 등록된 관심종목이 없습니다. 위에서 추가해보세요.</div>';
+  // ---- clients ----
+  function renderClientCards() {
+    var box = document.getElementById("client-cards");
+    if (clients.length === 0) {
+      box.innerHTML = '<div class="empty-state">등록된 고객이 없습니다. 위에서 추가해보세요.</div>';
       return;
     }
-    box.innerHTML = watchlist.map(function (s) {
-      if (s.id === editingStockId) {
-        return (
-          '<div class="stock-card editing" data-id="' + s.id + '">' +
-            '<form class="add-form inline-edit-form" data-action="save-stock-edit" data-id="' + s.id + '">' +
-              '<input class="stock-name-input" name="name" type="text" value="' + escapeAttr(s.name) + '" required>' +
-              '<input class="stock-code-input" name="code" type="text" value="' + escapeAttr(s.code || "") + '">' +
-              '<select class="stock-reason-select" name="reason">' + reasonOptionsHtml(s.reason) + '</select>' +
-              '<input class="stock-memo-input" name="memo" type="text" value="' + escapeAttr(s.memo || "") + '">' +
-              '<div class="edit-actions">' +
-                '<button type="submit">저장</button>' +
-                '<button type="button" class="btn-ghost" data-action="cancel-stock-edit">취소</button>' +
-              '</div>' +
-            '</form>' +
-          '</div>'
-        );
-      }
+    box.innerHTML = clients.map(function (c) {
+      var selected = c.id === selectedClientId;
       return (
-        '<div class="stock-card" data-id="' + s.id + '">' +
+        '<div class="client-card' + (selected ? " selected" : "") + '" data-id="' + c.id + '" data-action="select-client">' +
           '<div class="card-top">' +
             '<div>' +
-              '<div class="name">' + escapeHtml(s.name) + '</div>' +
-              (s.code ? '<div class="code">' + escapeHtml(s.code) + '</div>' : '') +
+              '<div class="name">' + escapeHtml(c.name) + '</div>' +
+              '<div class="review-date">점검일 ' + escapeHtml(c.review_date) + '</div>' +
             '</div>' +
             '<div class="card-actions">' +
-              '<button class="icon-btn" data-action="edit-stock" data-id="' + s.id + '" aria-label="관심종목 수정" title="수정">✎</button>' +
-              '<button class="delete-btn" data-action="delete-stock" data-id="' + s.id + '" aria-label="관심종목 삭제" title="삭제">✕</button>' +
+              '<button class="delete-btn" data-action="delete-client" data-id="' + c.id + '" aria-label="고객 삭제" title="삭제">✕</button>' +
             '</div>' +
           '</div>' +
-          '<span class="tag" data-reason="' + escapeHtml(s.reason) + '">' + escapeHtml(s.reason) + '</span>' +
-          (s.memo ? '<div class="memo">' + escapeHtml(s.memo) + '</div>' : '') +
         '</div>'
       );
     }).join("");
   }
 
-  document.getElementById("stock-form").addEventListener("submit", function (e) {
-    e.preventDefault();
-    var name = document.getElementById("stock-name").value.trim();
-    if (!name) return;
-    var code = document.getElementById("stock-code").value.trim();
-    var reason = document.getElementById("stock-reason").value;
-    var memo = document.getElementById("stock-memo").value.trim();
-    if (isDuplicateStock(name, code, null)) {
-      alert("이미 등록된 종목입니다 (같은 종목명 또는 종목코드가 존재합니다).");
-      return;
+  async function fetchClients() {
+    var res = await db.from("clients").select("*").order("review_date", { ascending: false });
+    if (res.error) { reportError(res.error); return; }
+    clients = res.data;
+    if (selectedClientId && !clients.some(function (c) { return c.id === selectedClientId; })) {
+      selectedClientId = null;
     }
-    watchlist.unshift({ id: uid(), name: name, code: code, reason: reason, memo: memo });
-    saveJSON(STORAGE.watchlist, watchlist);
+    renderClientCards();
+  }
+
+  document.getElementById("client-form").addEventListener("submit", async function (e) {
+    e.preventDefault();
+    var name = document.getElementById("client-name").value.trim();
+    var reviewDate = document.getElementById("client-date").value;
+    if (!name || !reviewDate) return;
+    var res = await db.from("clients").insert({ name: name, review_date: reviewDate }).select().single();
+    if (res.error) { reportError(res.error); return; }
     this.reset();
-    renderWatchlist();
+    selectedClientId = res.data.id;
+    await fetchClients();
+    renderHoldingPanel();
+    renderDeviationCards();
   });
 
-  document.getElementById("watchlist-cards").addEventListener("click", function (e) {
-    var deleteBtn = e.target.closest('[data-action="delete-stock"]');
-    var editBtn = e.target.closest('[data-action="edit-stock"]');
-    var cancelBtn = e.target.closest('[data-action="cancel-stock-edit"]');
+  document.getElementById("client-cards").addEventListener("click", async function (e) {
+    var deleteBtn = e.target.closest('[data-action="delete-client"]');
+    var card = e.target.closest('[data-action="select-client"]');
     if (deleteBtn) {
-      if (!confirm("이 관심종목을 삭제할까요?")) return;
+      if (!confirm("이 고객과 등록된 자산군 데이터를 모두 삭제할까요?")) return;
       var id = deleteBtn.getAttribute("data-id");
-      watchlist = watchlist.filter(function (s) { return s.id !== id; });
-      saveJSON(STORAGE.watchlist, watchlist);
-      renderWatchlist();
-    } else if (editBtn) {
-      editingStockId = editBtn.getAttribute("data-id");
-      renderWatchlist();
-    } else if (cancelBtn) {
-      editingStockId = null;
-      renderWatchlist();
+      var res = await db.from("clients").delete().eq("id", id);
+      if (res.error) { reportError(res.error); return; }
+      if (selectedClientId === id) selectedClientId = null;
+      await fetchClients();
+      await fetchHoldings();
+      renderHoldingPanel();
+      renderDeviationCards();
+      renderRebalanceList();
+    } else if (card) {
+      selectedClientId = card.getAttribute("data-id");
+      renderClientCards();
+      renderHoldingPanel();
+      renderDeviationCards();
     }
   });
 
-  document.getElementById("watchlist-cards").addEventListener("submit", function (e) {
-    var form = e.target.closest('[data-action="save-stock-edit"]');
-    if (!form) return;
-    e.preventDefault();
-    var id = form.getAttribute("data-id");
-    var name = form.elements["name"].value.trim();
-    if (!name) return;
-    var code = form.elements["code"].value.trim();
-    var reason = form.elements["reason"].value;
-    var memo = form.elements["memo"].value.trim();
-    if (isDuplicateStock(name, code, id)) {
-      alert("이미 등록된 종목입니다 (같은 종목명 또는 종목코드가 존재합니다).");
-      return;
-    }
-    watchlist.forEach(function (s) {
-      if (s.id === id) { s.name = name; s.code = code; s.reason = reason; s.memo = memo; }
-    });
-    saveJSON(STORAGE.watchlist, watchlist);
-    editingStockId = null;
-    renderWatchlist();
-  });
+  // ---- holdings (좌측 자산군별 비중 입력) ----
+  function selectedClientHoldings() {
+    return holdings.filter(function (h) { return h.client_id === selectedClientId; });
+  }
 
-  // ---- memos ----
-  function renderMemos() {
-    var box = document.getElementById("memo-list");
-    if (memos.length === 0) {
-      box.innerHTML = '<li class="empty-state">아직 기록된 메모가 없습니다.</li>';
+  function renderHoldingPanel() {
+    var sub = document.getElementById("holding-panel-sub");
+    var selected = clients.find(function (c) { return c.id === selectedClientId; });
+    sub.textContent = selected
+      ? selected.name + " 고객의 자산군별 보유/목표 비중을 입력하세요."
+      : "위에서 고객을 먼저 선택하세요.";
+
+    var list = document.getElementById("holding-list");
+    var rows = selectedClientHoldings();
+    if (!selected) {
+      list.innerHTML = "";
       return;
     }
-    box.innerHTML = memos.map(function (m) {
-      if (m.id === editingMemoId) {
+    if (rows.length === 0) {
+      list.innerHTML = '<li class="empty-state">등록된 자산군이 없습니다. 위에서 추가해보세요.</li>';
+      return;
+    }
+    list.innerHTML = rows.map(function (h) {
+      if (h.id === editingHoldingId) {
         return (
-          '<li class="memo-item editing" data-id="' + m.id + '">' +
-            '<form class="add-form inline-edit-form" data-action="save-memo-edit" data-id="' + m.id + '">' +
-              '<textarea class="memo-textarea" name="text" required>' + escapeHtml(m.text) + '</textarea>' +
+          '<li class="holding-item editing" data-id="' + h.id + '">' +
+            '<form class="add-form inline-edit-form" data-action="save-holding-edit" data-id="' + h.id + '">' +
+              '<input class="asset-name-input" name="asset_class" type="text" value="' + escapeAttr(h.asset_class) + '" required>' +
+              '<input class="weight-input" name="actual_weight" type="number" step="0.1" min="0" max="100" value="' + escapeAttr(h.actual_weight) + '" required>' +
+              '<input class="weight-input" name="target_weight" type="number" step="0.1" min="0" max="100" value="' + escapeAttr(h.target_weight) + '" required>' +
               '<div class="edit-actions">' +
                 '<button type="submit">저장</button>' +
-                '<button type="button" class="btn-ghost" data-action="cancel-memo-edit">취소</button>' +
+                '<button type="button" class="btn-ghost" data-action="cancel-holding-edit">취소</button>' +
               '</div>' +
             '</form>' +
           '</li>'
         );
       }
       return (
-        '<li class="memo-item" data-id="' + m.id + '">' +
+        '<li class="holding-item" data-id="' + h.id + '">' +
           '<div>' +
-            '<span class="memo-time">' + escapeHtml(m.time) + '</span>' +
-            '<div class="memo-body">' + escapeHtml(m.text) + '</div>' +
+            '<div class="asset-name">' + escapeHtml(h.asset_class) + '</div>' +
+            '<div class="weights">보유 ' + fmtWeight(h.actual_weight) + '% / 목표 ' + fmtWeight(h.target_weight) + '%</div>' +
           '</div>' +
           '<div class="card-actions">' +
-            '<button class="icon-btn" data-action="edit-memo" data-id="' + m.id + '" aria-label="메모 수정" title="수정">✎</button>' +
-            '<button class="delete-btn" data-action="delete-memo" data-id="' + m.id + '" aria-label="메모 삭제" title="삭제">✕</button>' +
+            '<button class="icon-btn" data-action="edit-holding" data-id="' + h.id + '" aria-label="자산군 수정" title="수정">✎</button>' +
+            '<button class="delete-btn" data-action="delete-holding" data-id="' + h.id + '" aria-label="자산군 삭제" title="삭제">✕</button>' +
           '</div>' +
         '</li>'
       );
     }).join("");
   }
 
-  document.getElementById("memo-form").addEventListener("submit", function (e) {
+  async function fetchHoldings() {
+    var res = await db.from("holdings").select("*").order("created_at", { ascending: true });
+    if (res.error) { reportError(res.error); return; }
+    holdings = res.data;
+  }
+
+  document.getElementById("holding-form").addEventListener("submit", async function (e) {
     e.preventDefault();
-    var textarea = document.getElementById("memo-text");
-    var text = textarea.value.trim();
-    if (!text) return;
-    var d = new Date();
-    var time = pad2(d.getHours()) + ":" + pad2(d.getMinutes());
-    memos.unshift({ id: uid(), text: text, time: time });
-    saveJSON(STORAGE.memos, memos);
-    textarea.value = "";
-    renderMemos();
-  });
-
-  document.getElementById("memo-list").addEventListener("click", function (e) {
-    var deleteBtn = e.target.closest('[data-action="delete-memo"]');
-    var editBtn = e.target.closest('[data-action="edit-memo"]');
-    var cancelBtn = e.target.closest('[data-action="cancel-memo-edit"]');
-    if (deleteBtn) {
-      if (!confirm("이 메모를 삭제할까요?")) return;
-      var id = deleteBtn.getAttribute("data-id");
-      memos = memos.filter(function (m) { return m.id !== id; });
-      saveJSON(STORAGE.memos, memos);
-      renderMemos();
-    } else if (editBtn) {
-      editingMemoId = editBtn.getAttribute("data-id");
-      renderMemos();
-    } else if (cancelBtn) {
-      editingMemoId = null;
-      renderMemos();
-    }
-  });
-
-  document.getElementById("memo-list").addEventListener("submit", function (e) {
-    var form = e.target.closest('[data-action="save-memo-edit"]');
-    if (!form) return;
-    e.preventDefault();
-    var id = form.getAttribute("data-id");
-    var text = form.elements["text"].value.trim();
-    if (!text) return;
-    memos.forEach(function (m) { if (m.id === id) m.text = text; });
-    saveJSON(STORAGE.memos, memos);
-    editingMemoId = null;
-    renderMemos();
-  });
-
-  // ---- checklist ----
-  function renderChecklist() {
-    var box = document.getElementById("checklist");
-    var progress = document.getElementById("checklist-progress");
-    var doneCount = checklist.filter(function (c) { return c.done; }).length;
-
-    if (checklist.length === 0) {
-      progress.textContent = "";
-      box.innerHTML = '<li class="empty-state">체크리스트 항목을 추가해보세요.</li>';
+    if (!selectedClientId) {
+      alert("먼저 위에서 고객을 선택하세요.");
       return;
     }
-    progress.innerHTML = "오늘 진행률: <strong>" + doneCount + " / " + checklist.length + "</strong> 완료";
-    box.innerHTML = checklist.map(function (c) {
-      if (c.id === editingCheckId) {
-        return (
-          '<li class="check-item editing" data-id="' + c.id + '">' +
-            '<form class="add-form inline-edit-form" data-action="save-check-edit" data-id="' + c.id + '">' +
-              '<input class="check-input" name="text" type="text" value="' + escapeAttr(c.text) + '" required>' +
-              '<div class="edit-actions">' +
-                '<button type="submit">저장</button>' +
-                '<button type="button" class="btn-ghost" data-action="cancel-check-edit">취소</button>' +
-              '</div>' +
-            '</form>' +
-          '</li>'
-        );
-      }
+    var assetClass = document.getElementById("holding-asset").value.trim();
+    var actual = document.getElementById("holding-actual").value;
+    var target = document.getElementById("holding-target").value;
+    if (!assetClass || actual === "" || target === "") return;
+    var res = await db.from("holdings").insert({
+      client_id: selectedClientId,
+      asset_class: assetClass,
+      actual_weight: Number(actual),
+      target_weight: Number(target)
+    });
+    if (res.error) { reportError(res.error); return; }
+    this.reset();
+    await fetchHoldings();
+    renderHoldingPanel();
+    renderDeviationCards();
+    renderRebalanceList();
+  });
+
+  document.getElementById("holding-list").addEventListener("click", async function (e) {
+    var deleteBtn = e.target.closest('[data-action="delete-holding"]');
+    var editBtn = e.target.closest('[data-action="edit-holding"]');
+    var cancelBtn = e.target.closest('[data-action="cancel-holding-edit"]');
+    if (deleteBtn) {
+      if (!confirm("이 자산군 항목을 삭제할까요?")) return;
+      var id = deleteBtn.getAttribute("data-id");
+      var res = await db.from("holdings").delete().eq("id", id);
+      if (res.error) { reportError(res.error); return; }
+      await fetchHoldings();
+      renderHoldingPanel();
+      renderDeviationCards();
+      renderRebalanceList();
+    } else if (editBtn) {
+      editingHoldingId = editBtn.getAttribute("data-id");
+      renderHoldingPanel();
+    } else if (cancelBtn) {
+      editingHoldingId = null;
+      renderHoldingPanel();
+    }
+  });
+
+  document.getElementById("holding-list").addEventListener("submit", async function (e) {
+    var form = e.target.closest('[data-action="save-holding-edit"]');
+    if (!form) return;
+    e.preventDefault();
+    var id = form.getAttribute("data-id");
+    var assetClass = form.elements["asset_class"].value.trim();
+    var actual = form.elements["actual_weight"].value;
+    var target = form.elements["target_weight"].value;
+    if (!assetClass || actual === "" || target === "") return;
+    var res = await db.from("holdings").update({
+      asset_class: assetClass,
+      actual_weight: Number(actual),
+      target_weight: Number(target)
+    }).eq("id", id);
+    if (res.error) { reportError(res.error); return; }
+    editingHoldingId = null;
+    await fetchHoldings();
+    renderHoldingPanel();
+    renderDeviationCards();
+    renderRebalanceList();
+  });
+
+  // ---- deviation cards (우측 이탈률 결과, 선택된 고객 기준) ----
+  function renderDeviationCards() {
+    var box = document.getElementById("deviation-cards");
+    var selected = clients.find(function (c) { return c.id === selectedClientId; });
+    if (!selected) {
+      box.innerHTML = '<div class="empty-state">고객을 선택하면 이탈률이 표시됩니다.</div>';
+      return;
+    }
+    var rows = selectedClientHoldings();
+    if (rows.length === 0) {
+      box.innerHTML = '<div class="empty-state">등록된 자산군이 없습니다.</div>';
+      return;
+    }
+    box.innerHTML = rows.map(function (h) {
+      var dev = deviationOf(h);
+      var over = Math.abs(dev) > DEVIATION_THRESHOLD;
+      var sign = dev > 0 ? "+" : "";
       return (
-        '<li class="check-item' + (c.done ? " done" : "") + '" data-id="' + c.id + '">' +
-          '<label class="check-label">' +
-            '<input type="checkbox" data-action="toggle-check" data-id="' + c.id + '" ' + (c.done ? "checked" : "") + '>' +
-            '<span class="check-text">' + escapeHtml(c.text) + '</span>' +
-          '</label>' +
-          '<div class="card-actions">' +
-            '<button class="icon-btn" data-action="edit-check" data-id="' + c.id + '" aria-label="체크리스트 항목 수정" title="수정">✎</button>' +
-            '<button class="delete-btn" data-action="delete-check" data-id="' + c.id + '" aria-label="체크리스트 항목 삭제" title="삭제">✕</button>' +
-          '</div>' +
-        '</li>'
+        '<div class="deviation-card' + (over ? " over" : "") + '">' +
+          '<div class="asset-name">' + escapeHtml(h.asset_class) + '</div>' +
+          '<div class="stat-row"><span>보유</span><span>' + fmtWeight(h.actual_weight) + '%</span></div>' +
+          '<div class="stat-row"><span>목표</span><span>' + fmtWeight(h.target_weight) + '%</span></div>' +
+          '<div class="deviation-value">' + sign + fmtWeight(dev) + '%p' + (over ? ' · 리밸런싱 필요' : '') + '</div>' +
+        '</div>'
       );
     }).join("");
   }
 
-  document.getElementById("check-form").addEventListener("submit", function (e) {
-    e.preventDefault();
-    var input = document.getElementById("check-text");
-    var text = input.value.trim();
-    if (!text) return;
-    checklist.push({ id: uid(), text: text, done: false });
-    saveJSON(STORAGE.checklist, checklist);
-    input.value = "";
-    renderChecklist();
-  });
+  // ---- rebalance list (우측, 전체 고객 중 이탈 기준 초과) ----
+  function renderRebalanceList() {
+    var list = document.getElementById("rebalance-list");
+    var byClient = {};
+    holdings.forEach(function (h) {
+      var dev = deviationOf(h);
+      if (Math.abs(dev) <= DEVIATION_THRESHOLD) return;
+      (byClient[h.client_id] = byClient[h.client_id] || []).push({ h: h, dev: dev });
+    });
 
-  document.getElementById("checklist").addEventListener("click", function (e) {
-    var toggleBtn = e.target.closest('[data-action="toggle-check"]');
-    var deleteBtn = e.target.closest('[data-action="delete-check"]');
-    var editBtn = e.target.closest('[data-action="edit-check"]');
-    var cancelBtn = e.target.closest('[data-action="cancel-check-edit"]');
-    if (toggleBtn) {
-      var id1 = toggleBtn.getAttribute("data-id");
-      checklist.forEach(function (c) { if (c.id === id1) c.done = !c.done; });
-      saveJSON(STORAGE.checklist, checklist);
-      renderChecklist();
-    } else if (deleteBtn) {
-      if (!confirm("이 체크리스트 항목을 삭제할까요?")) return;
-      var id2 = deleteBtn.getAttribute("data-id");
-      checklist = checklist.filter(function (c) { return c.id !== id2; });
-      saveJSON(STORAGE.checklist, checklist);
-      renderChecklist();
-    } else if (editBtn) {
-      editingCheckId = editBtn.getAttribute("data-id");
-      renderChecklist();
-    } else if (cancelBtn) {
-      editingCheckId = null;
-      renderChecklist();
+    var entries = Object.keys(byClient).map(function (clientId) {
+      var client = clients.find(function (c) { return c.id === clientId; });
+      var items = byClient[clientId];
+      var maxAbsDev = Math.max.apply(null, items.map(function (i) { return Math.abs(i.dev); }));
+      return { client: client, items: items, maxAbsDev: maxAbsDev };
+    }).filter(function (e) { return e.client; });
+
+    entries.sort(function (a, b) { return b.maxAbsDev - a.maxAbsDev; });
+
+    if (entries.length === 0) {
+      list.innerHTML = '<li class="empty-state">리밸런싱이 필요한 고객이 없습니다.</li>';
+      return;
     }
-  });
 
-  document.getElementById("checklist").addEventListener("submit", function (e) {
-    var form = e.target.closest('[data-action="save-check-edit"]');
-    if (!form) return;
-    e.preventDefault();
-    var id = form.getAttribute("data-id");
-    var text = form.elements["text"].value.trim();
-    if (!text) return;
-    checklist.forEach(function (c) { if (c.id === id) c.text = text; });
-    saveJSON(STORAGE.checklist, checklist);
-    editingCheckId = null;
-    renderChecklist();
-  });
+    list.innerHTML = entries.map(function (e) {
+      var reason = e.items.map(function (i) {
+        var sign = i.dev > 0 ? "+" : "";
+        return escapeHtml(i.h.asset_class) + " " + sign + fmtWeight(i.dev) + "%p";
+      }).join(", ");
+      return (
+        '<li class="rebalance-item">' +
+          '<div class="name-row">' +
+            '<span class="name">' + escapeHtml(e.client.name) + '</span>' +
+            '<span class="review-date">점검일 ' + escapeHtml(e.client.review_date) + '</span>' +
+          '</div>' +
+          '<div class="reason">' + reason + '</div>' +
+        '</li>'
+      );
+    }).join("");
+  }
 
   // ---- init ----
   renderHeader();
-  renderWatchlist();
-  renderMemos();
-  renderChecklist();
+  (async function init() {
+    await Promise.all([fetchClients(), fetchHoldings()]);
+    renderHoldingPanel();
+    renderDeviationCards();
+    renderRebalanceList();
+  })();
 })();

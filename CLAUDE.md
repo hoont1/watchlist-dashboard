@@ -33,20 +33,26 @@ data, unless the user overrides them for a specific request:
    ratio, or "원문 명시값" vs "추정치") inline or in a footnote — never present a
    calculated number as if it were a directly-sourced one.
 
-## 관심종목 대시보드 (개인 대시보드 앱)
+## 리밸런싱 체크 도구 (개인 대시보드 앱)
 
-참조: `@PRD.md` — 목표, 핵심 기능(관심종목 등록·삭제 / 메모 기록 / 오늘의
-체크리스트), 화면 구성, 제외 범위, 검증 기준은 이 문서를 따른다.
+참조: `@PRD.md` — 목표, 핵심 기능(고객별 자산 정보 입력 / 이탈률 자동 계산 /
+리밸런싱 필요 고객 리스트업), 화면 구성, 제외 범위, 검증 기준은 이 문서를
+따른다.
+
+이전 버전(관심종목·메모·체크리스트 대시보드)은 이 도구로 완전히 교체되었다.
 
 ### 기술 규칙
 
-- **순수 HTML/CSS/JS만 사용** — 프레임워크, 번들러, 빌드 도구, 외부 라이브러리
-  도입 금지.
+- **순수 HTML/CSS/JS만 사용, Supabase 클라이언트는 예외** — 프레임워크,
+  번들러, 빌드 도구 도입은 금지하되, 데이터 저장을 위한 `@supabase/supabase-js`
+  (CDN) 로드는 허용한다.
 - **파일 구성은 3개로 유지** — `index.html`, `style.css`, `app.js`. 마크업/스타일/
   로직을 한 파일에 섞지 말고 이 세 파일로 분리해 유지한다.
-- **데이터 저장은 localStorage** — 관심종목, 메모, 체크리스트 데이터는 모두
-  브라우저 `localStorage`에 저장한다. 서버, DB, 외부 API 연동은 PRD의 제외
-  범위(실시간 시세, 로그인)와 충돌하므로 사용하지 않는다.
+- **데이터 저장은 Supabase** — 고객·자산군 데이터는 Supabase 테이블(`clients`,
+  `holdings`)에 저장한다. 로그인 기능이 없으므로 RLS는 `anon` 전체 접근
+  정책으로 열려 있다 — URL/키를 아는 사람은 누구나 읽고 쓸 수 있다는 점을
+  전제로 개인 용도로만 사용한다. 이전에 만든 `watchlist`/`memos`/`checklist`
+  테이블은 더 이상 이 앱에서 쓰지 않지만 삭제하지 않고 남겨둔다.
 
 ### 작업 규칙
 

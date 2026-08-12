@@ -3,65 +3,59 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>나의 관심종목 대시보드</title>
+<title>리밸런싱 체크 도구</title>
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
 
 <header class="topbar">
   <div class="date" id="today-date"></div>
-  <h1 id="greeting">안녕하세요 👋</h1>
+  <h1>리밸런싱 체크 도구</h1>
 </header>
+
+<section class="panel client-bar">
+  <h2>고객 등록</h2>
+  <p class="sub">고객명과 점검일을 입력해 등록하고, 아래 카드를 클릭해 점검할 고객을 선택하세요.</p>
+
+  <form class="add-form" id="client-form">
+    <input class="client-name-input" id="client-name" type="text" placeholder="고객명" required>
+    <input class="client-date-input" id="client-date" type="date" required>
+    <button type="submit">+ 고객 등록</button>
+  </form>
+
+  <div class="card-grid" id="client-cards"></div>
+</section>
 
 <main class="layout">
   <section class="panel">
-    <h2>관심종목</h2>
-    <p class="sub">등록한 종목을 카드로 확인하고, 필요 없어지면 카드에서 바로 수정·삭제하세요.</p>
+    <h2>자산군별 비중 입력</h2>
+    <p class="sub" id="holding-panel-sub">위에서 고객을 먼저 선택하세요.</p>
 
-    <form class="add-form" id="stock-form">
-      <input class="stock-name-input" id="stock-name" type="text" placeholder="종목명 (예: 삼성전자)" required>
-      <input class="stock-code-input" id="stock-code" type="text" placeholder="종목코드">
-      <select class="stock-reason-select" id="stock-reason">
-        <option value="실적기대">실적기대</option>
-        <option value="신규이슈">신규이슈</option>
-        <option value="장기관심">장기관심</option>
-        <option value="기타">기타</option>
-      </select>
-      <input class="stock-memo-input" id="stock-memo" type="text" placeholder="관심 사유 한 줄 메모 (선택)">
-      <button type="submit">+ 관심종목 추가</button>
+    <form class="add-form" id="holding-form">
+      <input class="asset-name-input" id="holding-asset" type="text" placeholder="자산군명 (예: 국내주식)" required>
+      <input class="weight-input" id="holding-actual" type="number" step="0.1" min="0" max="100" placeholder="보유비중(%)" required>
+      <input class="weight-input" id="holding-target" type="number" step="0.1" min="0" max="100" placeholder="목표비중(%)" required>
+      <button type="submit">+ 추가</button>
     </form>
 
-    <div class="card-grid" id="watchlist-cards"></div>
+    <ul id="holding-list"></ul>
   </section>
 
   <aside>
     <section class="panel">
-      <h2>메모</h2>
-      <p class="sub">아침에 떠오른 생각, 체크할 이슈를 자유롭게 기록하세요.</p>
-
-      <form class="add-form" id="memo-form">
-        <textarea class="memo-textarea" id="memo-text" placeholder="메모를 입력하세요..." required></textarea>
-        <button type="submit">메모 기록</button>
-      </form>
-
-      <ul id="memo-list"></ul>
+      <h2>이탈률 결과</h2>
+      <p class="sub">이탈 기준: 보유비중 − 목표비중이 ±5%p를 초과하면 리밸런싱 필요로 표시합니다.</p>
+      <div class="card-grid" id="deviation-cards"></div>
     </section>
 
     <section class="panel">
-      <h2>오늘의 체크리스트</h2>
-      <p class="sub">매일 아침 확인할 항목입니다. 완료 표시는 자정에 초기화됩니다.</p>
-
-      <form class="add-form" id="check-form">
-        <input class="check-input" id="check-text" type="text" placeholder="체크할 항목 입력" required>
-        <button type="submit">추가</button>
-      </form>
-
-      <div class="checklist-progress" id="checklist-progress"></div>
-      <ul id="checklist"></ul>
+      <h2>리밸런싱 필요 고객</h2>
+      <ul id="rebalance-list"></ul>
     </section>
   </aside>
 </main>
 
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

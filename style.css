@@ -9,7 +9,8 @@
   --muted-soft:      #8f8f8f; /* placeholder / tertiary text */
   --primary:         #da291c; /* Rosso Corsa — reserved for primary CTAs only */
   --primary-active:  #b01e0a;
-  --semantic-warning:#f13a2c; /* destructive-action hover only */
+  --semantic-warning:#f13a2c; /* destructive-action hover, over-threshold deviation */
+  --semantic-ok:     #3fb950; /* within-threshold deviation */
   --focus-ring:      #f6e500; /* accent-yellow, documented as the global focus-ring color */
 
   /* nested item trays sit one brightness-step darker than their elevated panel,
@@ -64,6 +65,16 @@ body {
   color: var(--ink);
 }
 
+/* ---- client bar (top-of-page registration panel) ---- */
+.client-bar {
+  margin: var(--space-sm) clamp(16px, 4vw, 48px) 0;
+  max-width: 1280px;
+  margin-left: auto;
+  margin-right: auto;
+}
+.client-bar,
+.topbar { }
+
 /* ---- layout ---- */
 .layout {
   display: grid;
@@ -80,11 +91,12 @@ body {
     gap: var(--space-xs);
     padding: var(--space-xs) 16px var(--space-md);
   }
+  .client-bar { margin: var(--space-xs) 16px 0; }
   .topbar { padding: var(--space-sm) 16px var(--space-xs); }
   .topbar h1 { font-size: 20px; }
 }
 
-/* ---- panel (관심종목 / 메모 / 체크리스트 — each its own elevated surface) ---- */
+/* ---- panel ---- */
 .panel {
   background: var(--canvas-elevated);
   border-radius: var(--radius-none);
@@ -143,12 +155,10 @@ form.add-form textarea:focus {
   outline-offset: 1px;
   border-color: var(--focus-ring);
 }
-.stock-name-input { flex: 1 1 140px; min-width: 100px; }
-.stock-code-input { flex: 0 1 100px; }
-.stock-reason-select { flex: 0 1 130px; }
-.stock-memo-input { flex: 1 1 100%; }
-.memo-textarea { flex: 1 1 100%; min-height: 64px; resize: vertical; font-family: inherit; }
-.check-input { flex: 1 1 auto; }
+.client-name-input { flex: 1 1 160px; min-width: 120px; }
+.client-date-input { flex: 0 1 170px; }
+.asset-name-input { flex: 1 1 160px; min-width: 120px; }
+.weight-input { flex: 0 1 140px; }
 
 .inline-edit-form {
   border-bottom: none;
@@ -222,24 +232,31 @@ button.btn-ghost:hover {
 .icon-btn:hover { color: var(--ink); }
 .delete-btn:hover { color: var(--semantic-warning); }
 
-/* ---- watchlist cards (recessed trays, one brightness-step darker than the panel) ---- */
+/* ---- card grid (recessed trays, one brightness-step darker than the panel) ---- */
 .card-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
   gap: var(--space-xs);
 }
-.stock-card {
-  background: var(--canvas);
-  border-radius: var(--radius-none);
-  padding: var(--space-xs);
-}
-.stock-card .card-top {
+.card-top {
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
   gap: 8px;
 }
-.stock-card .name {
+
+/* ---- client card ---- */
+.client-card {
+  background: var(--canvas);
+  border-radius: var(--radius-none);
+  padding: var(--space-xs);
+  border: 2px solid transparent;
+  cursor: pointer;
+  transition: border-color 0.15s ease;
+}
+.client-card:hover { border-color: var(--tray-border); }
+.client-card.selected { border-color: var(--focus-ring); }
+.client-card .name {
   font-size: 16px;
   font-weight: 500;
   line-height: 1.4;
@@ -247,23 +264,70 @@ button.btn-ghost:hover {
   color: var(--ink);
   word-break: break-word;
 }
-.stock-card .code {
+.client-card .review-date {
   font-size: 12px;
   font-weight: 400;
   line-height: 1.4;
   color: var(--body);
   font-variant-numeric: tabular-nums;
 }
-.stock-card .memo {
-  margin-top: 8px;
-  font-size: 13px;
-  font-weight: 400;
-  line-height: 1.5;
-  color: var(--body);
+
+/* ---- holding list (좌측 자산군 입력 결과) ---- */
+#holding-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--space-xxs); }
+.holding-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  background: var(--canvas);
+  padding: var(--space-xs);
+}
+.holding-item .asset-name {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--ink);
   word-break: break-word;
 }
+.holding-item .weights {
+  font-size: 13px;
+  font-weight: 400;
+  color: var(--body);
+  font-variant-numeric: tabular-nums;
+  margin-top: 2px;
+}
 
-/* reason tag = badge-pill component: canvas-elevated bg, uppercase caption, full radius */
+/* ---- deviation cards (우측 이탈률 결과) ---- */
+.deviation-card {
+  background: var(--canvas);
+  border-radius: var(--radius-none);
+  padding: var(--space-xs);
+  border-left: 3px solid var(--semantic-ok);
+}
+.deviation-card.over { border-left-color: var(--semantic-warning); }
+.deviation-card .asset-name {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--ink);
+  margin-bottom: 6px;
+  word-break: break-word;
+}
+.deviation-card .stat-row {
+  display: flex;
+  justify-content: space-between;
+  font-size: 12px;
+  color: var(--body);
+  font-variant-numeric: tabular-nums;
+}
+.deviation-card .deviation-value {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--semantic-ok);
+  margin-top: 6px;
+  font-variant-numeric: tabular-nums;
+}
+.deviation-card.over .deviation-value { color: var(--semantic-warning); }
+
+/* reason / status tag = badge-pill component: canvas-elevated bg, uppercase caption, full radius */
 .tag {
   display: inline-block;
   font-size: 11px;
@@ -276,80 +340,34 @@ button.btn-ghost:hover {
   background: var(--canvas-elevated);
   color: var(--ink);
 }
+.tag.over { background: var(--semantic-warning); }
 
-/* ---- memo list (same recessed-tray treatment as watchlist cards) ---- */
-#memo-list, #checklist { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--space-xxs); }
-.memo-item {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  gap: 8px;
+/* ---- rebalance list (우측 리밸런싱 필요 고객) ---- */
+#rebalance-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--space-xxs); }
+.rebalance-item {
   background: var(--canvas);
   padding: var(--space-xs);
 }
-.memo-item .memo-body {
-  font-size: 14px;
-  font-weight: 400;
-  line-height: 1.5;
-  color: var(--ink);
-  white-space: pre-wrap;
-  word-break: break-word;
+.rebalance-item .name-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 8px;
 }
-.memo-item .memo-time {
+.rebalance-item .name {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--ink);
+}
+.rebalance-item .review-date {
   font-size: 12px;
-  font-weight: 400;
-  line-height: 1.4;
   color: var(--muted-soft);
-  display: block;
-  margin-bottom: 4px;
+  font-variant-numeric: tabular-nums;
 }
-
-/* ---- checklist ---- */
-.check-item {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  background: var(--canvas);
-  padding: var(--space-xxs) var(--space-xs);
-}
-.check-label {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  flex: 1;
-  min-width: 0;
-  cursor: pointer;
-  padding: 4px 0;
-}
-.check-item input[type="checkbox"] {
-  width: 18px;
-  height: 18px;
-  accent-color: var(--primary);
-  cursor: pointer;
-  flex: none;
-}
-.check-item .check-text {
-  flex: 1;
-  font-size: 14px;
-  font-weight: 400;
-  line-height: 1.5;
-  color: var(--ink);
-  overflow-wrap: anywhere;
-}
-.check-item.done .check-text {
-  color: var(--muted);
-  text-decoration: line-through;
-}
-.checklist-progress {
+.rebalance-item .reason {
+  margin-top: 6px;
   font-size: 13px;
-  font-weight: 400;
-  line-height: 1.5;
   color: var(--body);
-  margin-bottom: var(--space-xxs);
-}
-.checklist-progress strong {
-  font-weight: 700;
-  color: var(--ink);
 }
 
 .empty-state {
