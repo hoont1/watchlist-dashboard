@@ -29,6 +29,9 @@
   function fmtWeight(n) {
     return Number(n).toFixed(1);
   }
+  function fmtAmount(n) {
+    return Number(n).toFixed(2);
+  }
   function deviationOf(h) {
     return Number(h.actual_weight) - Number(h.target_weight);
   }
@@ -48,6 +51,7 @@
   var holdings = []; // all holdings, across all clients — needed for the rebalance list
   var selectedClientId = null;
   var editingHoldingId = null;
+  var clientSearchQuery = "";
 
   // ---- KPI row (상단 요약: 전체 고객 / 이탈 초과 고객 / 점검 밀린 고객) ----
   function renderKpis() {
@@ -93,7 +97,15 @@
       box.innerHTML = '<div class="empty-state">등록된 고객이 없습니다. 위에서 추가해보세요.</div>';
       return;
     }
-    box.innerHTML = clients.map(function (c) {
+    var query = clientSearchQuery.trim().toLowerCase();
+    var rows = query
+      ? clients.filter(function (c) { return c.name.toLowerCase().indexOf(query) !== -1; })
+      : clients;
+    if (rows.length === 0) {
+      box.innerHTML = '<div class="empty-state">검색 결과가 없습니다.</div>';
+      return;
+    }
+    box.innerHTML = rows.map(function (c) {
       var selected = c.id === selectedClientId;
       return (
         '<div class="client-card' + (selected ? " selected" : "") + '" data-id="' + c.id + '" data-action="select-client">' +
@@ -101,6 +113,7 @@
             '<div>' +
               '<div class="name">' + escapeHtml(c.name) + '</div>' +
               '<div class="review-date">점검일 ' + escapeHtml(c.review_date) + '</div>' +
+              (c.total_assets != null ? '<div class="review-date">총자산 ' + fmtWeight(c.total_assets) + '억원</div>' : '') +
             '</div>' +
             '<div class="card-actions">' +
               '<button class="delete-btn" data-action="delete-client" data-id="' + c.id + '" aria-label="고객 삭제" title="삭제">✕</button>' +
@@ -121,12 +134,22 @@
     renderClientCards();
   }
 
+  document.getElementById("client-search").addEventListener("input", function (e) {
+    clientSearchQuery = e.target.value;
+    renderClientCards();
+  });
+
   document.getElementById("client-form").addEventListener("submit", async function (e) {
     e.preventDefault();
     var name = document.getElementById("client-name").value.trim();
     var reviewDate = document.getElementById("client-date").value;
+    var assetsInput = document.getElementById("client-assets").value;
     if (!name || !reviewDate) return;
-    var res = await db.from("clients").insert({ name: name, review_date: reviewDate }).select().single();
+    var res = await db.from("clients").insert({
+      name: name,
+      review_date: reviewDate,
+      total_assets: assetsInput === "" ? null : Number(assetsInput)
+    }).select().single();
     if (res.error) { reportError(res.error); return; }
     this.reset();
     selectedClientId = res.data.id;
@@ -343,6 +366,16 @@
       var sign = dev > 0 ? "+" : "";
       var actualPct = Math.max(0, Math.min(100, Number(h.actual_weight)));
       var targetPct = Math.max(0, Math.min(100, Number(h.target_weight)));
+      var amountHtml = "";
+      if (over && selected.total_assets != null) {
+        var amount = Math.abs(dev) / 100 * Number(selected.total_assets);
+        var action = dev > 0 ? "매도" : "매수";
+        amountHtml =
+          '<div class="amount-suggestion">' +
+            '약 <strong>' + fmtAmount(amount) + '억원 ' + action + ' 필요</strong>' +
+            '<div class="amount-basis">이탈 ' + fmtWeight(Math.abs(dev)) + '%p × 총자산 ' + fmtWeight(selected.total_assets) + '억원</div>' +
+          '</div>';
+      }
       return (
         '<div class="deviation-card' + (over ? " over" : "") + '">' +
           '<div class="asset-name">' + escapeHtml(h.asset_class) + '</div>' +
@@ -353,6 +386,7 @@
           '<div class="stat-row"><span>보유</span><span>' + fmtWeight(h.actual_weight) + '%</span></div>' +
           '<div class="stat-row"><span>목표</span><span>' + fmtWeight(h.target_weight) + '%</span></div>' +
           '<div class="deviation-value">' + sign + fmtWeight(dev) + '%p' + (over ? ' · 리밸런싱 필요' : '') + '</div>' +
+          amountHtml +
         '</div>'
       );
     }).join("");
@@ -400,8 +434,17 @@
   }
 
   // ---- reminder list (우측, 마지막 점검일로부터 7일 이상 지난 고객) ----
+  function addDays(dateStr, days) {
+    var d = new Date(dateStr + "T00:00:00");
+    d.setDate(d.getDate() + days);
+    return d;
+  }
+  function dateKey(d) {
+    return d.getFullYear() + "-" + pad2(d.getMonth() + 1) + "-" + pad2(d.getDate());
+  }
+
   function renderReminderList() {
-    var list = document.getElementById("reminder-list");
+    var box = document.getElementById("reminder-list");
     var latestByName = {};
     clients.forEach(function (c) {
       var existing = latestByName[c.name];
@@ -410,29 +453,49 @@
       }
     });
 
-    var overdue = Object.keys(latestByName).map(function (name) {
-      var c = latestByName[name];
-      return { client: c, days: daysSince(c.review_date) };
-    }).filter(function (e) { return e.days >= OVERDUE_DAYS; });
+    // 고객별 다음 점검 예정일 = 마지막 점검일 + OVERDUE_DAYS, 같은 날짜끼리 묶는다
+    var dueByDate = {};
+    Object.keys(latestByName).forEach(function (name) {
+      var due = addDays(latestByName[name].review_date, OVERDUE_DAYS);
+      var key = dateKey(due);
+      (dueByDate[key] = dueByDate[key] || []).push(name);
+    });
 
-    overdue.sort(function (a, b) { return b.days - a.days; });
+    var today = new Date();
+    today.setHours(0, 0, 0, 0);
+    var year = today.getFullYear();
+    var month = today.getMonth();
+    var daysInMonth = new Date(year, month + 1, 0).getDate();
+    var startWeekday = new Date(year, month, 1).getDay();
+    var todayKeyStr = dateKey(today);
 
-    if (overdue.length === 0) {
-      list.innerHTML = '<li class="empty-state">점검이 밀린 고객이 없습니다.</li>';
-      return;
+    var weekdayNames = ["일", "월", "화", "수", "목", "금", "토"];
+    var cellsHtml = weekdayNames.map(function (w) {
+      return '<div class="calendar-weekday">' + w + '</div>';
+    }).join("");
+
+    for (var i = 0; i < startWeekday; i++) {
+      cellsHtml += '<div class="calendar-day empty"></div>';
+    }
+    for (var day = 1; day <= daysInMonth; day++) {
+      var cellDate = new Date(year, month, day);
+      var key = dateKey(cellDate);
+      var names = dueByDate[key] || [];
+      var isToday = key === todayKeyStr;
+      var isPast = cellDate < today;
+      var cls = "calendar-day";
+      if (isToday) cls += " today";
+      if (names.length > 0) cls += isPast ? " overdue" : " upcoming";
+      cellsHtml +=
+        '<div class="' + cls + '">' +
+          '<div class="calendar-day-num">' + day + '</div>' +
+          (names.length > 0 ? '<div class="calendar-day-names">' + names.map(escapeHtml).join(", ") + '</div>' : '') +
+        '</div>';
     }
 
-    list.innerHTML = overdue.map(function (e) {
-      return (
-        '<li class="rebalance-item">' +
-          '<div class="name-row">' +
-            '<span class="name">' + escapeHtml(e.client.name) + '</span>' +
-            '<span class="review-date">' + e.days + '일 경과</span>' +
-          '</div>' +
-          '<div class="reason">마지막 점검일 ' + escapeHtml(e.client.review_date) + '</div>' +
-        '</li>'
-      );
-    }).join("");
+    box.innerHTML =
+      '<div class="calendar-month">' + (month + 1) + '월</div>' +
+      '<div class="calendar-grid">' + cellsHtml + '</div>';
   }
 
   // ---- init ----
