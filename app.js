@@ -56,6 +56,7 @@
   var clientSortOption = "status-priority"; // "status-priority" (default) | "review-oldest" | "deviation-desc" | "name"
   var openEventDate = null; // "YYYY-MM-DD" of the day shown in the event modal, null when closed
   var confirmResolve = null; // pending Promise resolver for the generic confirm modal, null when closed
+  var stockAlertMap = {}; // 종목명 -> {direction:"up"|"down", changePercent} — 오늘의 급등락 종목(실데이터일 때만)
 
   var STATUS_META = {
     danger:  { emoji: "🔴", label: "리밸런싱 필요" },
@@ -124,6 +125,7 @@
         '</div>' +
       '</div>' +
       (state.data.notice ? '<div class="stock-retry-row"><button type="button" id="stocks-retry">다시 시도</button></div>' : '');
+    updateStockAlertMap(state.data);
   }
 
   async function fetchStocks() {
@@ -151,6 +153,98 @@
   document.getElementById("stocks-content").addEventListener("click", function (e) {
     if (e.target.id === "stocks-retry") fetchStocks();
   });
+
+  // ---- 보유종목 급등락 매칭 (고객이 입력한 세부 종목명 vs 오늘의 급등락 종목) ----
+  // notice가 있는 응답(폴백/예시 데이터)에는 신뢰할 수 없는 종목명이 섞여 있으므로
+  // 매칭을 하지 않는다 — 실데이터일 때만 stockAlertMap을 채운다
+  function updateStockAlertMap(data) {
+    stockAlertMap = {};
+    if (data.notice) { refreshStockAlerts(); return; }
+    (data.risers || []).forEach(function (s) { stockAlertMap[s.name] = { direction: "up", changePercent: s.changePercent }; });
+    (data.fallers || []).forEach(function (s) { stockAlertMap[s.name] = { direction: "down", changePercent: s.changePercent }; });
+    refreshStockAlerts();
+  }
+
+  function clientStockAlerts(clientId) {
+    return holdings
+      .filter(function (h) { return h.client_id === clientId && h.stock_name && stockAlertMap[h.stock_name]; })
+      .map(function (h) { return { stockName: h.stock_name, info: stockAlertMap[h.stock_name] }; });
+  }
+
+  function stockAlertsByClient() {
+    var byClient = {};
+    holdings.forEach(function (h) {
+      if (!h.stock_name) return;
+      var info = stockAlertMap[h.stock_name];
+      if (!info) return;
+      (byClient[h.client_id] = byClient[h.client_id] || []).push({ stockName: h.stock_name, info: info });
+    });
+    return byClient;
+  }
+
+  function stockAlertPlainLine(alert) {
+    var sign = alert.info.changePercent > 0 ? "+" : "";
+    var verb = alert.info.changePercent > 0 ? "상승" : "하락";
+    return alert.stockName + " 오늘 " + sign + alert.info.changePercent.toFixed(2) + "% " + verb + " 중";
+  }
+
+  function renderStockAlertBadge(client) {
+    var alerts = clientStockAlerts(client.id);
+    var badge = document.getElementById("stock-alert-badge");
+    var detail = document.getElementById("stock-alert-detail");
+    if (alerts.length === 0) {
+      badge.hidden = true;
+      detail.hidden = true;
+      detail.innerHTML = "";
+      return;
+    }
+    badge.hidden = false;
+    badge.title = alerts.map(stockAlertPlainLine).join(" · ");
+    detail.innerHTML = alerts.map(function (a) { return '<div>' + escapeHtml(stockAlertPlainLine(a)) + '</div>'; }).join("");
+  }
+
+  document.getElementById("stock-alert-badge").addEventListener("click", function () {
+    var detail = document.getElementById("stock-alert-detail");
+    detail.hidden = !detail.hidden;
+  });
+
+  function renderStockAlertList() {
+    var list = document.getElementById("stock-alert-list");
+    var byClient = stockAlertsByClient();
+    var clientIds = Object.keys(byClient);
+    if (clientIds.length === 0) {
+      list.innerHTML = '<li class="empty-state">오늘 급등락 종목과 일치하는 보유 종목이 없습니다.</li>';
+      return;
+    }
+    list.innerHTML = clientIds.map(function (clientId) {
+      var client = clients.find(function (c) { return c.id === clientId; });
+      if (!client) return "";
+      var reason = byClient[clientId].map(function (a) { return escapeHtml(stockAlertPlainLine(a)); }).join(", ");
+      return (
+        '<li class="rebalance-item" data-action="goto-client" data-id="' + client.id + '">' +
+          '<div class="name-row"><span class="name">' + escapeHtml(client.name) + '</span></div>' +
+          '<div class="reason">' + reason + '</div>' +
+        '</li>'
+      );
+    }).join("");
+  }
+
+  document.getElementById("stock-alert-list").addEventListener("click", function (e) {
+    var item = e.target.closest('[data-action="goto-client"]');
+    if (item) location.hash = "#/clients/" + item.getAttribute("data-id");
+  });
+
+  // 시세(fetchStocks)와 보유종목(fetchHoldings)은 서로 독립적으로 비동기 로드되므로,
+  // 어느 쪽이 먼저 끝나든 그 시점에 현재 화면(대시보드/고객상세)에 맞게 다시 그린다
+  function refreshStockAlerts() {
+    var route = parseRoute();
+    if (route.view === "client-detail") {
+      var client = clients.find(function (c) { return c.id === route.clientId; });
+      if (client) renderStockAlertBadge(client);
+    } else if (route.view === "dashboard") {
+      renderStockAlertList();
+    }
+  }
 
   // ---- clients ----
   var STATUS_PRIORITY = { danger: 0, warning: 1, ok: 2 };
@@ -335,6 +429,7 @@
           '<li class="holding-item editing" data-id="' + h.id + '">' +
             '<form class="add-form inline-edit-form" data-action="save-holding-edit" data-id="' + h.id + '">' +
               '<input class="asset-name-input" name="asset_class" type="text" list="asset-class-options" value="' + escapeAttr(h.asset_class) + '" required>' +
+              '<input class="stock-name-input" name="stock_name" type="text" placeholder="세부 종목명(선택)" value="' + escapeAttr(h.stock_name || "") + '">' +
               '<input class="weight-input" name="actual_weight" type="number" step="0.1" min="0" max="100" value="' + escapeAttr(h.actual_weight) + '" required>' +
               '<input class="weight-input" name="target_weight" type="number" step="0.1" min="0" max="100" value="' + escapeAttr(h.target_weight) + '" required>' +
               '<div class="edit-actions">' +
@@ -348,7 +443,7 @@
       return (
         '<li class="holding-item" data-id="' + h.id + '">' +
           '<div>' +
-            '<div class="asset-name">' + escapeHtml(h.asset_class) + '</div>' +
+            '<div class="asset-name">' + escapeHtml(h.asset_class) + (h.stock_name ? ' · ' + escapeHtml(h.stock_name) : '') + '</div>' +
             '<div class="weights">보유 ' + fmtWeight(h.actual_weight) + '% / 목표 ' + fmtWeight(h.target_weight) + '%</div>' +
           '</div>' +
           '<div class="card-actions">' +
@@ -365,6 +460,7 @@
     if (res.error) { reportError(res.error); return; }
     holdings = res.data;
     renderAssetClassOptions();
+    refreshStockAlerts();
   }
 
   // 자산군명 입력 자동완성 — 기본 자산군 + 그동안 입력했던 자산군명을 후보로 제공
@@ -386,12 +482,14 @@
       return;
     }
     var assetClass = document.getElementById("holding-asset").value.trim();
+    var stockName = document.getElementById("holding-stock-name").value.trim();
     var actual = document.getElementById("holding-actual").value;
     var target = document.getElementById("holding-target").value;
     if (!assetClass || actual === "" || target === "") return;
     var res = await db.from("holdings").insert({
       client_id: selectedClientId,
       asset_class: assetClass,
+      stock_name: stockName === "" ? null : stockName,
       actual_weight: Number(actual),
       target_weight: Number(target)
     });
@@ -431,11 +529,13 @@
     e.preventDefault();
     var id = form.getAttribute("data-id");
     var assetClass = form.elements["asset_class"].value.trim();
+    var stockName = form.elements["stock_name"].value.trim();
     var actual = form.elements["actual_weight"].value;
     var target = form.elements["target_weight"].value;
     if (!assetClass || actual === "" || target === "") return;
     var res = await db.from("holdings").update({
       asset_class: assetClass,
+      stock_name: stockName === "" ? null : stockName,
       actual_weight: Number(actual),
       target_weight: Number(target)
     }).eq("id", id);
@@ -733,6 +833,7 @@
       (client.total_assets != null ? " · 총자산 " + fmtWeight(client.total_assets) + "억원" : "");
     document.getElementById("gift-recommend-badge").hidden =
       !(client.total_assets != null && client.total_assets >= GIFT_REVIEW_THRESHOLD);
+    renderStockAlertBadge(client);
   }
 
   // ---- 증여 검토 시뮬레이터 (고객 상세, 리밸런싱과 별개의 참고용 계산기) ----
@@ -846,6 +947,7 @@
     } else {
       renderRebalanceList();
       renderReminderList();
+      renderStockAlertList();
     }
     showView(route.view);
   }

@@ -114,6 +114,27 @@ body {
   font-size: 12px;
   font-weight: 700;
 }
+.stock-alert-badge {
+  display: inline-block;
+  margin-top: var(--space-sm);
+  margin-left: var(--space-sm);
+  padding: 4px 12px;
+  border-radius: var(--radius-pill);
+  background: var(--accent-sell);
+  color: var(--on-dark);
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.stock-alert-detail {
+  margin-top: var(--space-sm);
+  padding: var(--space-md);
+  background: var(--canvas-softer);
+  border-radius: var(--radius-md);
+  font-size: 13px;
+  color: var(--ink);
+}
+.stock-alert-detail div + div { margin-top: 4px; }
 
 /* ---- 오늘의 급등락 종목 (대시보드 상단, /api/stocks 연동) ---- */
 .stock-panel {
@@ -275,9 +296,18 @@ form.add-form textarea:focus,
 .client-date-input { flex: 0 1 170px; }
 .client-assets-input { flex: 0 1 170px; }
 .asset-name-input { flex: 1 1 160px; min-width: 120px; }
+.stock-name-input { flex: 1 1 160px; min-width: 120px; }
 .weight-input { flex: 0 1 140px; }
 .event-title-input { flex: 1 1 140px; min-width: 100px; }
 .event-memo-input { flex: 1 1 140px; min-width: 100px; }
+
+.panel-subheading {
+  margin: var(--space-xl) 0 var(--space-md);
+  font-family: var(--font-display);
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--ink);
+}
 
 .inline-edit-form {
   border-bottom: none;

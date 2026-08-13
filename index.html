@@ -38,6 +38,9 @@
         <h2>리밸런싱 필요 고객</h2>
         <p class="sub">이탈 기준(±5%p)을 초과한 고객입니다. 클릭하면 상세 페이지로 이동합니다.</p>
         <ul id="rebalance-list"></ul>
+
+        <h3 class="panel-subheading">오늘 보유종목 급등락 영향받은 고객</h3>
+        <ul id="stock-alert-list"></ul>
       </section>
 
       <section class="panel">
@@ -87,6 +90,8 @@
       <h2 id="detail-client-name"></h2>
       <p class="sub" id="detail-client-meta"></p>
       <span class="gift-badge" id="gift-recommend-badge" hidden>증여 검토 권장</span>
+      <span class="stock-alert-badge" id="stock-alert-badge" hidden>⚠️ 보유종목 급등락 알림</span>
+      <div class="stock-alert-detail" id="stock-alert-detail" hidden></div>
     </section>
 
     <div class="layout">
@@ -97,6 +102,7 @@
         <form class="add-form" id="holding-form">
           <input class="asset-name-input" id="holding-asset" type="text" list="asset-class-options" placeholder="자산군명 (예: 국내주식)" required>
           <datalist id="asset-class-options"></datalist>
+          <input class="stock-name-input" id="holding-stock-name" type="text" placeholder="세부 종목명(선택, 예: 삼성전자)">
           <input class="weight-input" id="holding-actual" type="number" step="0.1" min="0" max="100" placeholder="보유비중(%)" required>
           <input class="weight-input" id="holding-target" type="number" step="0.1" min="0" max="100" placeholder="목표비중(%)" required>
           <button type="submit">+ 추가</button>
