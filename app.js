@@ -90,14 +90,14 @@
   // 자체 오류 등)에 대비한 프론트엔드 최종 폴백 — 화면이 완전히 비지 않게 한다
   var FRONTEND_FALLBACK_STOCKS = {
     risers: [
-      { name: "예시종목 A", price: "12,500", changePercent: 29.8 },
-      { name: "예시종목 B", price: "8,420", changePercent: 21.3 },
-      { name: "예시종목 C", price: "45,100", changePercent: 15.7 }
+      { name: "삼성전자", price: "12,500", changePercent: 29.8 },
+      { name: "SK하이닉스", price: "8,420", changePercent: 21.3 },
+      { name: "카카오", price: "45,100", changePercent: 15.7 }
     ],
     fallers: [
-      { name: "예시종목 F", price: "5,230", changePercent: -28.6 },
-      { name: "예시종목 G", price: "19,900", changePercent: -19.2 },
-      { name: "예시종목 H", price: "2,780", changePercent: -14.5 }
+      { name: "LG에너지솔루션", price: "5,230", changePercent: -28.6 },
+      { name: "셀트리온", price: "19,900", changePercent: -19.2 },
+      { name: "POSCO홀딩스", price: "2,780", changePercent: -14.5 }
     ]
   };
 

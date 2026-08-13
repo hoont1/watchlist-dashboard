@@ -19,21 +19,23 @@ var FALL_URLS = [
 var FETCH_TIMEOUT_MS = 6000;
 
 // 실제 시세를 못 가져올 때 화면이 비지 않도록 보여줄 예시 데이터.
-// 종목명을 "예시종목"으로 붙여 실제 시세로 오인하지 않도록 한다.
+// 종목명은 실제 코스피/코스닥 상장사명을 쓰지만 가격·등락률은 임의 값이며,
+// notice 문구("실시간 데이터를 불러오지 못해 예시 데이터를 표시 중입니다")로
+// 실제 시세가 아님을 알린다.
 var FALLBACK_DATA = {
   risers: [
-    { code: "000000", name: "예시종목 A", price: "12,500", changePercent: 29.8 },
-    { code: "000001", name: "예시종목 B", price: "8,420", changePercent: 21.3 },
-    { code: "000002", name: "예시종목 C", price: "45,100", changePercent: 15.7 },
-    { code: "000003", name: "예시종목 D", price: "3,150", changePercent: 12.1 },
-    { code: "000004", name: "예시종목 E", price: "67,800", changePercent: 9.4 }
+    { code: "000000", name: "삼성전자", price: "12,500", changePercent: 29.8 },
+    { code: "000001", name: "SK하이닉스", price: "8,420", changePercent: 21.3 },
+    { code: "000002", name: "카카오", price: "45,100", changePercent: 15.7 },
+    { code: "000003", name: "NAVER", price: "3,150", changePercent: 12.1 },
+    { code: "000004", name: "현대차", price: "67,800", changePercent: 9.4 }
   ],
   fallers: [
-    { code: "000005", name: "예시종목 F", price: "5,230", changePercent: -28.6 },
-    { code: "000006", name: "예시종목 G", price: "19,900", changePercent: -19.2 },
-    { code: "000007", name: "예시종목 H", price: "2,780", changePercent: -14.5 },
-    { code: "000008", name: "예시종목 I", price: "33,450", changePercent: -11.8 },
-    { code: "000009", name: "예시종목 J", price: "9,610", changePercent: -8.3 }
+    { code: "000005", name: "LG에너지솔루션", price: "5,230", changePercent: -28.6 },
+    { code: "000006", name: "셀트리온", price: "19,900", changePercent: -19.2 },
+    { code: "000007", name: "POSCO홀딩스", price: "2,780", changePercent: -14.5 },
+    { code: "000008", name: "삼성바이오로직스", price: "33,450", changePercent: -11.8 },
+    { code: "000009", name: "기아", price: "9,610", changePercent: -8.3 }
   ]
 };
 
