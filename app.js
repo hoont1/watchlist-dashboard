@@ -1035,6 +1035,11 @@
   var TAX_ACCOUNT_LABEL = { irp: "IRP", isa: "ISA", pension_savings: "연금저축" };
   var IRP_PENSION_LIMIT = 9000000; // 연 900만원, IRP+연금저축 합산 세액공제 한도
   var ISA_LIMIT_LABEL = { general: "일반형 200만원", lower_income: "서민형 400만원" };
+  var ISA_LIMIT_WON = { general: 2000000, lower_income: 4000000 };
+  var ISA_TAX_RATE = 0.099; // 비과세 한도 초과분 분리과세율(지방소득세 포함)
+  var SALARY_BRACKET = 55000000; // 총급여 5,500만원 기준
+  var TAX_CREDIT_RATE_LOW = 0.165; // 총급여 5,500만원 이하
+  var TAX_CREDIT_RATE_HIGH = 0.132; // 총급여 5,500만원 초과
 
   function fmtManwon(won) {
     return Math.round(won / 10000).toLocaleString("ko-KR") + "만원";
@@ -1044,33 +1049,83 @@
     return taxAccounts.filter(function (a) { return a.client_id === selectedClientId; });
   }
 
+  function getTaxSalary() {
+    var raw = document.getElementById("tax-salary").value.replace(/,/g, "");
+    return raw === "" ? null : Number(raw);
+  }
+
+  function taxCreditRate(salary) {
+    if (salary == null) return null;
+    return salary <= SALARY_BRACKET ? TAX_CREDIT_RATE_LOW : TAX_CREDIT_RATE_HIGH;
+  }
+
+  // 900만원 한도를 등록 순서대로 배분해, 각 계좌의 "세액공제 대상 납입액"을 구한다.
+  // 한도를 넘는 초과 납입분은 이 배분에서 자연히 제외된다 (deductible이 0으로 캡됨).
+  function allocateDeductibleContributions(pensionAccounts) {
+    var remaining = IRP_PENSION_LIMIT;
+    var byId = {};
+    pensionAccounts.forEach(function (a) {
+      var contribution = Number(a.annual_contribution || 0);
+      var deductible = Math.max(0, Math.min(contribution, remaining));
+      remaining -= deductible;
+      byId[a.id] = deductible;
+    });
+    return byId;
+  }
+
   function renderTaxLimitSummary(accounts) {
     var box = document.getElementById("tax-limit-summary");
     if (accounts.length === 0) { box.innerHTML = ""; return; }
-    var total = accounts
-      .filter(function (a) { return a.account_type === "irp" || a.account_type === "pension_savings"; })
-      .reduce(function (s, a) { return s + Number(a.annual_contribution || 0); }, 0);
+    var pensionAccounts = accounts.filter(function (a) { return a.account_type === "irp" || a.account_type === "pension_savings"; });
+    var total = pensionAccounts.reduce(function (s, a) { return s + Number(a.annual_contribution || 0); }, 0);
     var remaining = Math.max(0, IRP_PENSION_LIMIT - total);
     var pct = Math.min(100, total / IRP_PENSION_LIMIT * 100);
     var message = remaining > 0
       ? "올해 세액공제 한도까지 " + fmtManwon(remaining) + " 남았습니다."
       : "올해 세액공제 한도(900만원)를 모두 채웠습니다.";
+
+    var salary = getTaxSalary();
+    var rate = taxCreditRate(salary);
+    var deductibleTotal = Math.min(total, IRP_PENSION_LIMIT);
+    var creditHtml;
+    if (rate == null) {
+      creditHtml = '<div class="tax-limit-value">총급여를 입력하면 총 예상 세액공제(환급) 합계를 계산합니다.</div>';
+    } else {
+      var creditAmount = deductibleTotal * rate;
+      creditHtml =
+        '<div class="tax-limit-value">총 예상 세액공제(환급) 합계: <strong>' + fmtWon(creditAmount) + '</strong></div>' +
+        '<div class="tax-account-note">세액공제 대상 납입액 ' + fmtWon(deductibleTotal) + ' × 공제율 ' + (rate * 100).toFixed(1) + '%</div>';
+    }
+
     box.innerHTML =
       '<div class="tax-limit-card">' +
         '<div class="tax-limit-label">올해 세액공제 한도 (900만원, IRP·연금저축 합산)</div>' +
         '<div class="weight-bar"><div class="weight-bar-fill" style="width:' + pct.toFixed(1) + '%"></div></div>' +
         '<div class="tax-limit-value">' + escapeHtml(message) + '</div>' +
+        creditHtml +
       '</div>';
   }
 
-  function renderTaxAccountCard(acc) {
+  function renderTaxAccountCard(acc, deductible, rate) {
     var typeLabel = TAX_ACCOUNT_LABEL[acc.account_type] || acc.account_type;
     var note;
     if (acc.account_type === "isa") {
       typeLabel += " · " + (acc.isa_type === "lower_income" ? "서민형" : "일반형");
+      var isaLimit = ISA_LIMIT_WON[acc.isa_type] || ISA_LIMIT_WON.general;
       note = '<div class="tax-account-note">비과세 한도 안내: ' + (ISA_LIMIT_LABEL[acc.isa_type] || ISA_LIMIT_LABEL.general) + '</div>';
+      if (acc.expected_profit == null) {
+        note += '<div class="tax-account-note">만기 시 예상 수익을 입력하면 예상 세금을 계산해드립니다.</div>';
+      } else {
+        var excess = Math.max(0, Number(acc.expected_profit) - isaLimit);
+        note += excess > 0
+          ? '<div class="tax-account-note">예상 수익 ' + fmtWon(acc.expected_profit) + ' − 비과세 한도 ' + fmtWon(isaLimit) + ' = 초과 ' + fmtWon(excess) + ' × 9.9% = <strong>예상 과세액 ' + fmtWon(excess * ISA_TAX_RATE) + '</strong></div>'
+          : '<div class="tax-account-note">예상 수익이 비과세 한도 이내라 예상 과세액이 없습니다.</div>';
+      }
     } else {
       note = '<div class="tax-account-note">세액공제 한도(900만원, IRP·연금저축 합산)에 포함됩니다.</div>';
+      note += rate == null
+        ? '<div class="tax-account-note">총급여를 입력하면 예상 세액공제(환급)액을 계산합니다.</div>'
+        : '<div class="tax-account-note">세액공제 대상 납입액 ' + fmtWon(deductible) + ' × 공제율 ' + (rate * 100).toFixed(1) + '% = <strong>예상 세액공제(환급)액 ' + fmtWon(deductible * rate) + '</strong></div>';
     }
     return (
       '<div class="tax-account-card">' +
@@ -1090,9 +1145,20 @@
     var accounts = selectedClientTaxAccounts();
     renderTaxLimitSummary(accounts);
     var list = document.getElementById("tax-account-list");
-    list.innerHTML = accounts.length === 0
-      ? '<div class="empty-state">등록된 절세계좌가 없습니다. 위에서 추가해보세요.</div>'
-      : accounts.map(renderTaxAccountCard).join("");
+    if (accounts.length === 0) {
+      list.innerHTML = '<div class="empty-state">등록된 절세계좌가 없습니다. 위에서 추가해보세요.</div>';
+      return;
+    }
+    var rate = taxCreditRate(getTaxSalary());
+    var pensionAccounts = accounts.filter(function (a) { return a.account_type === "irp" || a.account_type === "pension_savings"; });
+    var deductibleById = allocateDeductibleContributions(pensionAccounts);
+    list.innerHTML = accounts.map(function (acc) {
+      return renderTaxAccountCard(acc, deductibleById[acc.id] || 0, rate);
+    }).join("");
+  }
+
+  function resetTaxAccountSection() {
+    document.getElementById("tax-salary").value = "";
   }
 
   async function fetchTaxAccounts() {
@@ -1102,16 +1168,22 @@
   }
 
   document.getElementById("tax-account-type").addEventListener("change", function (e) {
-    document.getElementById("tax-isa-type").hidden = e.target.value !== "isa";
+    var isIsa = e.target.value === "isa";
+    document.getElementById("tax-isa-type").hidden = !isIsa;
+    document.getElementById("tax-expected-profit").hidden = !isIsa;
   });
 
-  // 잔액/납입액 입력창에 천단위 콤마를 실시간으로 붙여준다 — 저장 시엔 콤마를 떼고 숫자로 변환
+  // 잔액/납입액/예상수익/총급여 입력창에 천단위 콤마를 실시간으로 붙여준다 — 저장 시엔 콤마를 떼고 숫자로 변환
   function formatDigitsWithCommas(e) {
     var raw = e.target.value.replace(/[^0-9]/g, "");
     e.target.value = raw === "" ? "" : Number(raw).toLocaleString("ko-KR");
   }
-  ["tax-balance", "tax-contribution"].forEach(function (id) {
+  ["tax-balance", "tax-contribution", "tax-expected-profit"].forEach(function (id) {
     document.getElementById(id).addEventListener("input", formatDigitsWithCommas);
+  });
+  document.getElementById("tax-salary").addEventListener("input", function (e) {
+    formatDigitsWithCommas(e);
+    renderTaxAccountPanel();
   });
 
   document.getElementById("tax-account-form").addEventListener("submit", async function (e) {
@@ -1124,6 +1196,7 @@
     var isaType = accountType === "isa" ? document.getElementById("tax-isa-type").value : null;
     var balance = document.getElementById("tax-balance").value.replace(/,/g, "");
     var contribution = document.getElementById("tax-contribution").value.replace(/,/g, "");
+    var expectedProfit = accountType === "isa" ? document.getElementById("tax-expected-profit").value.replace(/,/g, "") : "";
     var joinedDate = document.getElementById("tax-joined-date").value;
     var res = await db.from("tax_accounts").insert({
       client_id: selectedClientId,
@@ -1131,11 +1204,13 @@
       isa_type: isaType,
       balance: balance === "" ? null : Number(balance),
       annual_contribution: contribution === "" ? null : Number(contribution),
+      expected_profit: expectedProfit === "" ? null : Number(expectedProfit),
       joined_date: joinedDate === "" ? null : joinedDate
     });
     if (res.error) { reportError(res.error); return; }
     this.reset();
     document.getElementById("tax-isa-type").hidden = true;
+    document.getElementById("tax-expected-profit").hidden = true;
     await fetchTaxAccounts();
     renderTaxAccountPanel();
   });
@@ -1198,6 +1273,7 @@
       renderHoldingPanel();
       renderDeviationCards();
       renderHoldingPieCharts();
+      resetTaxAccountSection();
       renderTaxAccountPanel();
       resetGiftForm();
       showClientSubtab(route.subtab);

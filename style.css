@@ -281,7 +281,8 @@ form.add-form {
 form.add-form input,
 form.add-form select,
 form.add-form textarea,
-.client-search-input {
+.client-search-input,
+.tax-salary-input {
   font-family: var(--font-text);
   font-size: 16px;
   font-weight: 400;
@@ -296,7 +297,8 @@ form.add-form textarea,
 }
 form.add-form input::placeholder,
 form.add-form textarea::placeholder,
-.client-search-input::placeholder {
+.client-search-input::placeholder,
+.tax-salary-input::placeholder {
   color: var(--mute);
 }
 .client-search-input {
@@ -308,7 +310,8 @@ form.add-form textarea::placeholder,
 form.add-form input:focus,
 form.add-form select:focus,
 form.add-form textarea:focus,
-.client-search-input:focus {
+.client-search-input:focus,
+.tax-salary-input:focus {
   outline: 2px solid var(--ink);
   outline-offset: 1px;
   border-color: var(--ink);
@@ -715,8 +718,22 @@ button.btn-ghost:hover {
   border-color: var(--ink);
 }
 .tax-balance-input,
-.tax-contribution-input { flex: 1 1 160px; min-width: 140px; }
+.tax-contribution-input,
+.tax-expected-profit-input { flex: 1 1 160px; min-width: 140px; }
 .tax-joined-input { flex: 0 1 170px; }
+
+.tax-salary-row { margin-bottom: var(--space-lg); }
+.tax-salary-label {
+  display: block;
+  margin-bottom: var(--space-xs);
+  font-size: 13px;
+  color: var(--body);
+}
+.tax-salary-input {
+  display: block;
+  width: 100%;
+  max-width: 280px;
+}
 
 .tax-limit-card {
   background: var(--canvas);
