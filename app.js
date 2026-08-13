@@ -50,6 +50,7 @@
   var clients = [];
   var holdings = []; // all holdings, across all clients — needed for the rebalance list
   var personalEvents = [];
+  var taxAccounts = []; // all IRP/ISA/연금저축 계좌, across all clients
   var selectedClientId = null;
   var editingHoldingId = null;
   var clientSearchQuery = "";
@@ -1030,6 +1031,117 @@
     document.getElementById(id).addEventListener("change", renderGiftResult);
   });
 
+  // ---- 절세계좌 현황 (IRP/ISA/연금저축, 일반 자산 리밸런싱과는 별개) ----
+  var TAX_ACCOUNT_LABEL = { irp: "IRP", isa: "ISA", pension_savings: "연금저축" };
+  var IRP_PENSION_LIMIT = 9000000; // 연 900만원, IRP+연금저축 합산 세액공제 한도
+  var ISA_LIMIT_LABEL = { general: "일반형 200만원", lower_income: "서민형 400만원" };
+
+  function fmtManwon(won) {
+    return Math.round(won / 10000).toLocaleString("ko-KR") + "만원";
+  }
+
+  function selectedClientTaxAccounts() {
+    return taxAccounts.filter(function (a) { return a.client_id === selectedClientId; });
+  }
+
+  function renderTaxLimitSummary(accounts) {
+    var box = document.getElementById("tax-limit-summary");
+    if (accounts.length === 0) { box.innerHTML = ""; return; }
+    var total = accounts
+      .filter(function (a) { return a.account_type === "irp" || a.account_type === "pension_savings"; })
+      .reduce(function (s, a) { return s + Number(a.annual_contribution || 0); }, 0);
+    var remaining = Math.max(0, IRP_PENSION_LIMIT - total);
+    var pct = Math.min(100, total / IRP_PENSION_LIMIT * 100);
+    var message = remaining > 0
+      ? "올해 세액공제 한도까지 " + fmtManwon(remaining) + " 남았습니다."
+      : "올해 세액공제 한도(900만원)를 모두 채웠습니다.";
+    box.innerHTML =
+      '<div class="tax-limit-card">' +
+        '<div class="tax-limit-label">올해 세액공제 한도 (900만원, IRP·연금저축 합산)</div>' +
+        '<div class="weight-bar"><div class="weight-bar-fill" style="width:' + pct.toFixed(1) + '%"></div></div>' +
+        '<div class="tax-limit-value">' + escapeHtml(message) + '</div>' +
+      '</div>';
+  }
+
+  function renderTaxAccountCard(acc) {
+    var typeLabel = TAX_ACCOUNT_LABEL[acc.account_type] || acc.account_type;
+    var note;
+    if (acc.account_type === "isa") {
+      typeLabel += " · " + (acc.isa_type === "lower_income" ? "서민형" : "일반형");
+      note = '<div class="tax-account-note">비과세 한도 안내: ' + (ISA_LIMIT_LABEL[acc.isa_type] || ISA_LIMIT_LABEL.general) + '</div>';
+    } else {
+      note = '<div class="tax-account-note">세액공제 한도(900만원, IRP·연금저축 합산)에 포함됩니다.</div>';
+    }
+    return (
+      '<div class="tax-account-card">' +
+        '<div class="tax-account-top">' +
+          '<span class="tax-account-type">' + escapeHtml(typeLabel) + '</span>' +
+          '<button class="delete-btn" data-action="delete-tax-account" data-id="' + acc.id + '" aria-label="계좌 삭제" title="삭제">✕</button>' +
+        '</div>' +
+        '<div class="tax-account-row"><span>가입일</span><span>' + escapeHtml(acc.joined_date || "—") + '</span></div>' +
+        '<div class="tax-account-row"><span>잔액</span><span>' + (acc.balance != null ? fmtWon(acc.balance) : "—") + '</span></div>' +
+        '<div class="tax-account-row"><span>올해 납입액</span><span>' + (acc.annual_contribution != null ? fmtWon(acc.annual_contribution) : "—") + '</span></div>' +
+        note +
+      '</div>'
+    );
+  }
+
+  function renderTaxAccountPanel() {
+    var accounts = selectedClientTaxAccounts();
+    renderTaxLimitSummary(accounts);
+    var list = document.getElementById("tax-account-list");
+    list.innerHTML = accounts.length === 0
+      ? '<div class="empty-state">등록된 절세계좌가 없습니다. 위에서 추가해보세요.</div>'
+      : accounts.map(renderTaxAccountCard).join("");
+  }
+
+  async function fetchTaxAccounts() {
+    var res = await db.from("tax_accounts").select("*").order("created_at", { ascending: true });
+    if (res.error) { reportError(res.error); return; }
+    taxAccounts = res.data;
+  }
+
+  document.getElementById("tax-account-type").addEventListener("change", function (e) {
+    document.getElementById("tax-isa-type").hidden = e.target.value !== "isa";
+  });
+
+  document.getElementById("tax-account-form").addEventListener("submit", async function (e) {
+    e.preventDefault();
+    if (!selectedClientId) {
+      alert("먼저 위에서 고객을 선택하세요.");
+      return;
+    }
+    var accountType = document.getElementById("tax-account-type").value;
+    var isaType = accountType === "isa" ? document.getElementById("tax-isa-type").value : null;
+    var balance = document.getElementById("tax-balance").value;
+    var contribution = document.getElementById("tax-contribution").value;
+    var joinedDate = document.getElementById("tax-joined-date").value;
+    var res = await db.from("tax_accounts").insert({
+      client_id: selectedClientId,
+      account_type: accountType,
+      isa_type: isaType,
+      balance: balance === "" ? null : Number(balance),
+      annual_contribution: contribution === "" ? null : Number(contribution),
+      joined_date: joinedDate === "" ? null : joinedDate
+    });
+    if (res.error) { reportError(res.error); return; }
+    this.reset();
+    document.getElementById("tax-isa-type").hidden = true;
+    await fetchTaxAccounts();
+    renderTaxAccountPanel();
+  });
+
+  document.getElementById("tax-account-list").addEventListener("click", async function (e) {
+    var deleteBtn = e.target.closest('[data-action="delete-tax-account"]');
+    if (!deleteBtn) return;
+    if (!confirm("이 계좌를 삭제할까요?")) return;
+    var id = deleteBtn.getAttribute("data-id");
+    var res = await db.from("tax_accounts").delete().eq("id", id);
+    if (res.error) { reportError(res.error); return; }
+    await fetchTaxAccounts();
+    renderTaxAccountPanel();
+  });
+
   // ---- routing (해시 기반 페이지 전환: #/, #/clients, #/clients/:id) ----
   function parseRoute() {
     var parts = location.hash.replace(/^#\/?/, "").split("/").filter(Boolean);
@@ -1059,6 +1171,7 @@
       renderHoldingPanel();
       renderDeviationCards();
       renderHoldingPieCharts();
+      renderTaxAccountPanel();
       resetGiftForm();
     } else if (route.view === "clients") {
       selectedClientId = null;
@@ -1083,7 +1196,7 @@
   renderHeader();
   fetchStocks(); // 고객/자산 데이터와 독립적이므로 별도로 바로 호출
   (async function init() {
-    await Promise.all([fetchClients(), fetchHoldings(), fetchPersonalEvents()]);
+    await Promise.all([fetchClients(), fetchHoldings(), fetchPersonalEvents(), fetchTaxAccounts()]);
     renderRoute();
   })();
 })();

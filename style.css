@@ -663,6 +663,67 @@ button.btn-ghost:hover {
 .gift-stat.warn .gift-stat-value { color: var(--accent-sell); }
 .disclaimer { margin-top: var(--space-sm); font-size: 11px; color: var(--mute); }
 
+/* ---- 절세계좌 현황 ---- */
+.tax-account-type-select,
+.tax-isa-type-select {
+  flex: 0 1 160px;
+  font-family: var(--font-text);
+  font-size: 15px;
+  padding: 0 var(--space-md);
+  min-height: 48px;
+  border: 1px solid var(--surface-pressed);
+  border-radius: var(--radius-md);
+  background: var(--canvas);
+  color: var(--ink);
+}
+.tax-account-type-select:focus,
+.tax-isa-type-select:focus {
+  outline: 2px solid var(--ink);
+  outline-offset: 1px;
+  border-color: var(--ink);
+}
+.tax-balance-input,
+.tax-contribution-input { flex: 1 1 160px; min-width: 140px; }
+.tax-joined-input { flex: 0 1 170px; }
+
+.tax-limit-card {
+  background: var(--canvas);
+  border-radius: var(--radius-lg);
+  padding: var(--space-lg);
+  border: 1px solid var(--surface-pressed);
+  margin-bottom: var(--space-lg);
+}
+.tax-limit-label { font-size: 12px; color: var(--body); margin-bottom: var(--space-sm); }
+.tax-limit-value { margin-top: var(--space-sm); font-size: 14px; font-weight: 700; color: var(--ink); }
+
+.tax-account-card {
+  background: var(--canvas);
+  border-radius: var(--radius-lg);
+  padding: var(--space-lg);
+  border: 1px solid var(--surface-pressed);
+}
+.tax-account-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: var(--space-sm);
+}
+.tax-account-type { font-size: 14px; font-weight: 700; color: var(--ink); }
+.tax-account-row {
+  display: flex;
+  justify-content: space-between;
+  font-size: 12px;
+  color: var(--body);
+  margin-top: 4px;
+}
+.tax-account-note {
+  margin-top: var(--space-sm);
+  padding-top: var(--space-sm);
+  border-top: 1px solid var(--surface-pressed);
+  font-size: 11px;
+  color: var(--mute);
+}
+
 /* ---- rebalance list (우측 리밸런싱 필요 고객) ---- */
 #rebalance-list, #reminder-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--space-sm); }
 .rebalance-item {
