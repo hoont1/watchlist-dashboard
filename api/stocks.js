@@ -59,6 +59,10 @@ function parseRows(html, forceSign) {
     if (name && price && percent !== null) {
       if (forceSign > 0) percent = Math.abs(percent);
       if (forceSign < 0) percent = -Math.abs(percent);
+      // 국내 증시 가격제한폭은 ±30% — 이를 넘거나 1원당 단가가 비현실적으로
+      // 큰 값은 다른 열(거래량 등)을 잘못 집은 파싱 오류로 보고 버린다
+      if (Math.abs(percent) > 30.5) return;
+      if (price.replace(/,/g, "").length > 7) return;
       results.push({ code: codeMatch[1], name: name, price: price, changePercent: percent });
     }
   });
