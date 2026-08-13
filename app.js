@@ -400,8 +400,8 @@
     var actualSum = rows.reduce(function (s, h) { return s + Number(h.actual_weight); }, 0);
     var targetSum = rows.reduce(function (s, h) { return s + Number(h.target_weight); }, 0);
     box.innerHTML =
-      '<span>보유비중 합계 <strong>' + fmtWeight(actualSum) + '%</strong></span>' +
-      '<span>목표비중 합계 <strong>' + fmtWeight(targetSum) + '%</strong></span>';
+      '<div class="asset-summary-tile"><div class="asset-summary-value">' + fmtWeight(actualSum) + '%</div><div class="asset-summary-label">보유비중 합계</div></div>' +
+      '<div class="asset-summary-tile"><div class="asset-summary-value">' + fmtWeight(targetSum) + '%</div><div class="asset-summary-label">목표비중 합계</div></div>';
   }
 
   function renderHoldingPanel() {
@@ -1145,7 +1145,9 @@
   // ---- routing (해시 기반 페이지 전환: #/, #/clients, #/clients/:id) ----
   function parseRoute() {
     var parts = location.hash.replace(/^#\/?/, "").split("/").filter(Boolean);
-    if (parts[0] === "clients" && parts[1]) return { view: "client-detail", clientId: parts[1] };
+    if (parts[0] === "clients" && parts[1]) {
+      return { view: "client-detail", clientId: parts[1], subtab: parts[2] || "assets" };
+    }
     if (parts[0] === "clients") return { view: "clients" };
     return { view: "dashboard" };
   }
@@ -1154,12 +1156,28 @@
     document.querySelectorAll(".view").forEach(function (section) {
       section.classList.toggle("active", section.getAttribute("data-view") === view);
     });
-    document.querySelectorAll(".nav-link").forEach(function (btn) {
+    document.querySelectorAll(".main-nav .nav-link").forEach(function (btn) {
       var target = btn.getAttribute("data-nav");
       var active = target === view || (target === "clients" && view === "client-detail");
       btn.classList.toggle("active", active);
     });
   }
+
+  // 고객 상세 페이지 안의 [자산현황]/[절세계좌]/[증여검토] 서브탭 전환
+  function showClientSubtab(subtab) {
+    document.querySelectorAll(".client-subview").forEach(function (el) {
+      el.classList.toggle("active", el.getAttribute("data-subtab") === subtab);
+    });
+    document.querySelectorAll(".client-subtabs .nav-link").forEach(function (btn) {
+      btn.classList.toggle("active", btn.getAttribute("data-subtab") === subtab);
+    });
+  }
+
+  document.querySelector(".client-subtabs").addEventListener("click", function (e) {
+    var btn = e.target.closest("[data-subtab]");
+    if (!btn || !selectedClientId) return;
+    location.hash = "#/clients/" + selectedClientId + "/" + btn.getAttribute("data-subtab");
+  });
 
   function renderRoute() {
     var route = parseRoute();
@@ -1173,6 +1191,7 @@
       renderHoldingPieCharts();
       renderTaxAccountPanel();
       resetGiftForm();
+      showClientSubtab(route.subtab);
     } else if (route.view === "clients") {
       selectedClientId = null;
       renderClientTable();
