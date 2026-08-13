@@ -1105,6 +1105,15 @@
     document.getElementById("tax-isa-type").hidden = e.target.value !== "isa";
   });
 
+  // 잔액/납입액 입력창에 천단위 콤마를 실시간으로 붙여준다 — 저장 시엔 콤마를 떼고 숫자로 변환
+  function formatDigitsWithCommas(e) {
+    var raw = e.target.value.replace(/[^0-9]/g, "");
+    e.target.value = raw === "" ? "" : Number(raw).toLocaleString("ko-KR");
+  }
+  ["tax-balance", "tax-contribution"].forEach(function (id) {
+    document.getElementById(id).addEventListener("input", formatDigitsWithCommas);
+  });
+
   document.getElementById("tax-account-form").addEventListener("submit", async function (e) {
     e.preventDefault();
     if (!selectedClientId) {
@@ -1113,8 +1122,8 @@
     }
     var accountType = document.getElementById("tax-account-type").value;
     var isaType = accountType === "isa" ? document.getElementById("tax-isa-type").value : null;
-    var balance = document.getElementById("tax-balance").value;
-    var contribution = document.getElementById("tax-contribution").value;
+    var balance = document.getElementById("tax-balance").value.replace(/,/g, "");
+    var contribution = document.getElementById("tax-contribution").value.replace(/,/g, "");
     var joinedDate = document.getElementById("tax-joined-date").value;
     var res = await db.from("tax_accounts").insert({
       client_id: selectedClientId,
