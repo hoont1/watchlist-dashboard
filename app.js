@@ -498,6 +498,7 @@
     await fetchHoldings();
     renderHoldingPanel();
     renderDeviationCards();
+    renderHoldingPieCharts();
     renderRebalanceList();
   });
 
@@ -513,6 +514,7 @@
       await fetchHoldings();
       renderHoldingPanel();
       renderDeviationCards();
+      renderHoldingPieCharts();
       renderRebalanceList();
     } else if (editBtn) {
       editingHoldingId = editBtn.getAttribute("data-id");
@@ -544,6 +546,7 @@
     await fetchHoldings();
     renderHoldingPanel();
     renderDeviationCards();
+    renderHoldingPieCharts();
     renderRebalanceList();
   });
 
@@ -593,6 +596,121 @@
       );
     }).join("");
   }
+
+  // ---- 포트폴리오 구성 파이차트 (보유비중 vs 목표비중, 선택된 고객 기준) ----
+  // 데이터뷰즈 스킬의 검증된 카테고리 팔레트 순서 그대로 사용 — CVD 안전성이
+  // 순서 자체에 있으므로 임의로 재배열하지 않는다. 8개를 넘는 자산군은 회색으로 폴백.
+  var PIE_COLORS = ["#2a78d6", "#eb6834", "#1baf7a", "#eda100", "#e87ba4", "#008300", "#4a3aa7", "#e34948"];
+  var PIE_COLOR_FALLBACK = "#898781";
+
+  function assetColorMap(rows) {
+    var map = {};
+    var order = [];
+    rows.forEach(function (h) { if (order.indexOf(h.asset_class) === -1) order.push(h.asset_class); });
+    order.forEach(function (name, i) {
+      map[name] = i < PIE_COLORS.length ? PIE_COLORS[i] : PIE_COLOR_FALLBACK;
+    });
+    return map;
+  }
+
+  function polarToCartesian(cx, cy, r, angleDeg) {
+    var rad = (angleDeg - 90) * Math.PI / 180;
+    return { x: cx + r * Math.cos(rad), y: cy + r * Math.sin(rad) };
+  }
+
+  function buildPieSvg(rows, valueKey, colorMap) {
+    var size = 160, r = 76, cx = size / 2, cy = size / 2;
+    var slices = rows
+      .map(function (h) { return { name: h.asset_class, value: Number(h[valueKey]) }; })
+      .filter(function (s) { return s.value > 0; });
+    var total = slices.reduce(function (s, x) { return s + x.value; }, 0);
+    if (total <= 0) return '<div class="empty-state">표시할 데이터가 없습니다.</div>';
+
+    // 슬라이스가 1개면 시작점=끝점이 겹쳐 호(arc) 경로가 그려지지 않으므로 원으로 대체
+    if (slices.length === 1) {
+      return (
+        '<svg viewBox="0 0 ' + size + ' ' + size + '" width="' + size + '" height="' + size + '">' +
+          '<circle cx="' + cx + '" cy="' + cy + '" r="' + r + '" fill="' + colorMap[slices[0].name] + '" ' +
+          'tabindex="0" data-name="' + escapeAttr(slices[0].name) + '" data-pct="100.0">' +
+            '<title>' + escapeHtml(slices[0].name) + ' 100.0%</title>' +
+          '</circle>' +
+        '</svg>'
+      );
+    }
+
+    var angle = 0;
+    var paths = slices.map(function (s) {
+      var pct = s.value / total * 100;
+      var startAngle = angle;
+      var endAngle = angle + (s.value / total) * 360;
+      angle = endAngle;
+      var start = polarToCartesian(cx, cy, r, startAngle);
+      var end = polarToCartesian(cx, cy, r, endAngle);
+      var largeArc = endAngle - startAngle > 180 ? 1 : 0;
+      var d = ["M", cx, cy, "L", start.x, start.y, "A", r, r, 0, largeArc, 1, end.x, end.y, "Z"].join(" ");
+      return (
+        '<path d="' + d + '" fill="' + colorMap[s.name] + '" stroke="var(--canvas)" stroke-width="2" ' +
+        'tabindex="0" data-name="' + escapeAttr(s.name) + '" data-pct="' + pct.toFixed(1) + '">' +
+          '<title>' + escapeHtml(s.name) + ' ' + pct.toFixed(1) + '%</title>' +
+        '</path>'
+      );
+    }).join("");
+    return '<svg viewBox="0 0 ' + size + ' ' + size + '" width="' + size + '" height="' + size + '">' + paths + '</svg>';
+  }
+
+  function buildPieLegend(rows, valueKey, colorMap) {
+    if (rows.length === 0) return '<li class="empty-state">등록된 자산군이 없습니다.</li>';
+    var total = rows.reduce(function (s, h) { return s + Number(h[valueKey]); }, 0);
+    return rows.map(function (h) {
+      var value = Number(h[valueKey]);
+      var pct = total > 0 ? value / total * 100 : 0;
+      return (
+        '<li class="pie-legend-item">' +
+          '<span class="pie-legend-swatch" style="background:' + colorMap[h.asset_class] + '"></span>' +
+          '<span class="pie-legend-name">' + escapeHtml(h.asset_class) + '</span>' +
+          '<span class="pie-legend-pct">' + pct.toFixed(1) + '%</span>' +
+        '</li>'
+      );
+    }).join("");
+  }
+
+  function renderHoldingPieCharts() {
+    var rows = selectedClientHoldings();
+    var colorMap = assetColorMap(rows);
+    document.getElementById("holding-pie-actual").innerHTML = buildPieSvg(rows, "actual_weight", colorMap);
+    document.getElementById("holding-legend-actual").innerHTML = buildPieLegend(rows, "actual_weight", colorMap);
+    document.getElementById("holding-pie-target").innerHTML = buildPieSvg(rows, "target_weight", colorMap);
+    document.getElementById("holding-legend-target").innerHTML = buildPieLegend(rows, "target_weight", colorMap);
+  }
+
+  function showPieTooltip(x, y, name, pct) {
+    var tip = document.getElementById("pie-tooltip");
+    tip.textContent = name + " " + pct + "%";
+    tip.style.left = (x + 14) + "px";
+    tip.style.top = (y + 14) + "px";
+    tip.hidden = false;
+  }
+  function hidePieTooltip() {
+    document.getElementById("pie-tooltip").hidden = true;
+  }
+  function attachPieTooltip(containerId) {
+    var container = document.getElementById(containerId);
+    container.addEventListener("pointermove", function (e) {
+      var mark = e.target.closest("[data-name]");
+      if (!mark) { hidePieTooltip(); return; }
+      showPieTooltip(e.pageX, e.pageY, mark.getAttribute("data-name"), mark.getAttribute("data-pct"));
+    });
+    container.addEventListener("pointerleave", hidePieTooltip);
+    container.addEventListener("focusin", function (e) {
+      var mark = e.target.closest("[data-name]");
+      if (!mark) return;
+      var rect = mark.getBoundingClientRect();
+      showPieTooltip(rect.left + rect.width / 2 + window.scrollX, rect.top + window.scrollY, mark.getAttribute("data-name"), mark.getAttribute("data-pct"));
+    });
+    container.addEventListener("focusout", hidePieTooltip);
+  }
+  attachPieTooltip("holding-pie-actual");
+  attachPieTooltip("holding-pie-target");
 
   // ---- rebalance list (우측, 전체 고객 중 이탈 기준 초과) ----
   function renderRebalanceList() {
@@ -940,6 +1058,7 @@
       renderClientDetailHeader(client);
       renderHoldingPanel();
       renderDeviationCards();
+      renderHoldingPieCharts();
       resetGiftForm();
     } else if (route.view === "clients") {
       selectedClientId = null;

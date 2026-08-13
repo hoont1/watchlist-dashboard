@@ -551,6 +551,47 @@ button.btn-ghost:hover {
 .deviation-card.over-sell .action-label { background: var(--accent-sell); }
 .deviation-card.over-buy .action-label { background: var(--accent-buy); }
 
+/* ---- 포트폴리오 구성 파이차트 (보유비중 vs 목표비중) ---- */
+.pie-columns {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-lg);
+}
+@media (max-width: 480px) { .pie-columns { grid-template-columns: 1fr; } }
+.pie-col { text-align: center; }
+.pie-col-title { margin: 0 0 var(--space-sm); font-size: 13px; font-weight: 700; color: var(--body); }
+.pie-chart-wrap { display: flex; justify-content: center; }
+.pie-chart-wrap svg path,
+.pie-chart-wrap svg circle { cursor: pointer; outline: none; }
+.pie-chart-wrap svg path:focus-visible,
+.pie-chart-wrap svg circle:focus-visible { stroke: var(--ink); stroke-width: 3; }
+.pie-legend {
+  list-style: none;
+  margin: var(--space-md) 0 0;
+  padding: 0;
+  text-align: left;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.pie-legend-item { display: flex; align-items: center; gap: var(--space-xs); font-size: 12px; }
+.pie-legend-swatch { width: 10px; height: 10px; border-radius: 2px; flex: none; }
+.pie-legend-name { color: var(--ink); flex: 1 1 auto; word-break: break-word; }
+.pie-legend-pct { color: var(--mute); flex: none; }
+
+.chart-tooltip {
+  position: absolute;
+  z-index: 200;
+  padding: 6px 10px;
+  background: var(--ink);
+  color: var(--on-dark);
+  font-size: 12px;
+  font-weight: 500;
+  border-radius: var(--radius-md);
+  pointer-events: none;
+  white-space: nowrap;
+}
+
 /* amount suggestion — only shown when over threshold + client has total_assets set,
    so it always sits inside a color-coded .over-sell/.over-buy card */
 .amount-suggestion {
