@@ -49,38 +49,19 @@
   // ---- state (in-memory cache of the last fetch from Supabase) ----
   var clients = [];
   var holdings = []; // all holdings, across all clients — needed for the rebalance list
+  var personalEvents = [];
   var selectedClientId = null;
   var editingHoldingId = null;
   var clientSearchQuery = "";
+  var clientSortOption = "review-oldest"; // "review-oldest" | "deviation-desc" | "name"
+  var openEventDate = null; // "YYYY-MM-DD" of the day shown in the event modal, null when closed
+  var confirmResolve = null; // pending Promise resolver for the generic confirm modal, null when closed
 
-  // ---- KPI row (상단 요약: 전체 고객 / 이탈 초과 고객 / 점검 밀린 고객) ----
-  function renderKpis() {
-    var box = document.getElementById("kpi-row");
-
-    var totalNames = {};
-    clients.forEach(function (c) { totalNames[c.name] = true; });
-    var totalCount = Object.keys(totalNames).length;
-
-    var overClientIds = {};
-    holdings.forEach(function (h) {
-      if (Math.abs(deviationOf(h)) > DEVIATION_THRESHOLD) overClientIds[h.client_id] = true;
-    });
-    var overCount = Object.keys(overClientIds).length;
-
-    var latestByName = {};
-    clients.forEach(function (c) {
-      var existing = latestByName[c.name];
-      if (!existing || c.review_date > existing.review_date) latestByName[c.name] = c;
-    });
-    var overdueCount = Object.keys(latestByName).filter(function (name) {
-      return daysSince(latestByName[name].review_date) >= OVERDUE_DAYS;
-    }).length;
-
-    box.innerHTML =
-      '<div class="stat-tile"><div class="stat-value">' + totalCount + '</div><div class="stat-label">전체 고객</div></div>' +
-      '<div class="stat-tile' + (overCount > 0 ? ' over' : '') + '"><div class="stat-value">' + overCount + '</div><div class="stat-label">이탈 초과 고객</div></div>' +
-      '<div class="stat-tile' + (overdueCount > 0 ? ' over' : '') + '"><div class="stat-value">' + overdueCount + '</div><div class="stat-label">점검 밀린 고객</div></div>';
-  }
+  var STATUS_META = {
+    danger:  { emoji: "🔴", label: "리밸런싱 필요" },
+    warning: { emoji: "🟡", label: "점검 임박" },
+    ok:      { emoji: "🟢", label: "정상" }
+  };
 
   // ---- header ----
   function renderHeader() {
@@ -90,23 +71,121 @@
     document.getElementById("today-date").textContent = dateStr;
   }
 
+  // ---- 오늘의 급등락 종목 (대시보드 상단, /api/stocks 서버리스 함수가 네이버 금융을 대신 조회) ----
+  function renderStockList(rows, direction) {
+    if (!rows || rows.length === 0) return '<div class="empty-state">데이터가 없습니다.</div>';
+    return '<ul class="stock-list">' + rows.map(function (s) {
+      var sign = s.changePercent > 0 ? "+" : "";
+      return (
+        '<li class="stock-item">' +
+          '<span class="stock-name">' + escapeHtml(s.name) + '</span>' +
+          '<span class="stock-price">' + escapeHtml(s.price) + '</span>' +
+          '<span class="stock-change ' + direction + '">' + sign + s.changePercent.toFixed(2) + '%</span>' +
+        '</li>'
+      );
+    }).join("") + '</ul>';
+  }
+
+  function renderStocks(state) {
+    var content = document.getElementById("stocks-content");
+    var updated = document.getElementById("stocks-updated");
+    if (state.status === "loading") {
+      updated.textContent = "";
+      content.innerHTML = '<div class="empty-state">시세 정보를 불러오는 중...</div>';
+      return;
+    }
+    if (state.status === "error") {
+      updated.textContent = "";
+      content.innerHTML =
+        '<div class="empty-state">시세 정보를 불러오지 못했습니다.' +
+          '<div class="stock-retry-row"><button type="button" id="stocks-retry">다시 시도</button></div>' +
+        '</div>';
+      return;
+    }
+    var d = new Date(state.data.updatedAt);
+    updated.textContent = "업데이트 " + pad2(d.getHours()) + ":" + pad2(d.getMinutes()) + " 기준";
+    content.innerHTML =
+      '<div class="stock-columns">' +
+        '<div class="stock-col">' +
+          '<h3 class="stock-col-title">급등</h3>' +
+          renderStockList(state.data.risers, "up") +
+        '</div>' +
+        '<div class="stock-col">' +
+          '<h3 class="stock-col-title">급락</h3>' +
+          renderStockList(state.data.fallers, "down") +
+        '</div>' +
+      '</div>';
+  }
+
+  async function fetchStocks() {
+    renderStocks({ status: "loading" });
+    try {
+      var res = await fetch("/api/stocks");
+      var data = await res.json();
+      if (!res.ok || data.error) throw new Error((data && data.message) || "요청 실패");
+      renderStocks({ status: "ok", data: data });
+    } catch (err) {
+      console.error(err);
+      renderStocks({ status: "error" });
+    }
+  }
+
+  document.getElementById("stocks-refresh").addEventListener("click", fetchStocks);
+  document.getElementById("stocks-content").addEventListener("click", function (e) {
+    if (e.target.id === "stocks-retry") fetchStocks();
+  });
+
   // ---- clients ----
+  // 🔴 리밸런싱 필요(이탈 초과) > 🟡 점검 임박(다음 점검 예정일까지 3일 이하) > 🟢 정상, 이 우선순위로 판정
+  function clientStatus(client) {
+    var rows = holdings.filter(function (h) { return h.client_id === client.id; });
+    var overDeviation = rows.some(function (h) { return Math.abs(deviationOf(h)) > DEVIATION_THRESHOLD; });
+    if (overDeviation) return "danger";
+    var dueDate = addDays(client.review_date, OVERDUE_DAYS);
+    var today = new Date();
+    today.setHours(0, 0, 0, 0);
+    var daysUntilDue = Math.round((dueDate - today) / 86400000);
+    if (daysUntilDue <= 3) return "warning";
+    return "ok";
+  }
+
+  function maxAbsDeviationForClient(clientId) {
+    var devs = holdings.filter(function (h) { return h.client_id === clientId; }).map(function (h) { return Math.abs(deviationOf(h)); });
+    return devs.length ? Math.max.apply(null, devs) : 0;
+  }
+
+  function filteredClients() {
+    var query = clientSearchQuery.trim().toLowerCase();
+    if (!query) return clients;
+    return clients.filter(function (c) { return c.name.toLowerCase().indexOf(query) !== -1; });
+  }
+
+  function sortedClients(rows) {
+    var sorted = rows.slice();
+    if (clientSortOption === "deviation-desc") {
+      sorted.sort(function (a, b) { return maxAbsDeviationForClient(b.id) - maxAbsDeviationForClient(a.id); });
+    } else if (clientSortOption === "name") {
+      sorted.sort(function (a, b) { return a.name.localeCompare(b.name, "ko"); });
+    } else {
+      sorted.sort(function (a, b) { return a.review_date < b.review_date ? -1 : a.review_date > b.review_date ? 1 : 0; });
+    }
+    return sorted;
+  }
+
   function renderClientCards() {
     var box = document.getElementById("client-cards");
     if (clients.length === 0) {
-      box.innerHTML = '<div class="empty-state">등록된 고객이 없습니다. 위에서 추가해보세요.</div>';
+      box.innerHTML = '<div class="empty-state">아직 등록된 고객이 없습니다. 위에서 고객을 등록해보세요.</div>';
       return;
     }
-    var query = clientSearchQuery.trim().toLowerCase();
-    var rows = query
-      ? clients.filter(function (c) { return c.name.toLowerCase().indexOf(query) !== -1; })
-      : clients;
+    var rows = sortedClients(filteredClients());
     if (rows.length === 0) {
-      box.innerHTML = '<div class="empty-state">검색 결과가 없습니다.</div>';
+      box.innerHTML = '<div class="empty-state">조건에 맞는 고객이 없습니다.</div>';
       return;
     }
     box.innerHTML = rows.map(function (c) {
       var selected = c.id === selectedClientId;
+      var meta = STATUS_META[clientStatus(c)];
       return (
         '<div class="client-card' + (selected ? " selected" : "") + '" data-id="' + c.id + '" data-action="select-client">' +
           '<div class="card-top">' +
@@ -116,6 +195,7 @@
               (c.total_assets != null ? '<div class="review-date">총자산 ' + fmtWeight(c.total_assets) + '억원</div>' : '') +
             '</div>' +
             '<div class="card-actions">' +
+              '<span class="status-badge" title="' + meta.label + '">' + meta.emoji + '</span>' +
               '<button class="delete-btn" data-action="delete-client" data-id="' + c.id + '" aria-label="고객 삭제" title="삭제">✕</button>' +
             '</div>' +
           '</div>' +
@@ -139,6 +219,11 @@
     renderClientCards();
   });
 
+  document.getElementById("client-sort").addEventListener("change", function (e) {
+    clientSortOption = e.target.value;
+    renderClientCards();
+  });
+
   document.getElementById("client-form").addEventListener("submit", async function (e) {
     e.preventDefault();
     var name = document.getElementById("client-name").value.trim();
@@ -154,7 +239,6 @@
     this.reset();
     await fetchClients();
     renderReminderList();
-    renderKpis();
     location.hash = "#/clients/" + res.data.id;
   });
 
@@ -162,7 +246,8 @@
     var deleteBtn = e.target.closest('[data-action="delete-client"]');
     var card = e.target.closest('[data-action="select-client"]');
     if (deleteBtn) {
-      if (!confirm("이 고객과 등록된 자산군 데이터를 모두 삭제할까요?")) return;
+      var confirmed = await askConfirm("이 고객과 등록된 자산군 데이터를 모두 삭제합니다. 정말 삭제하시겠습니까?");
+      if (!confirmed) return;
       var id = deleteBtn.getAttribute("data-id");
       var res = await db.from("clients").delete().eq("id", id);
       if (res.error) { reportError(res.error); return; }
@@ -172,7 +257,6 @@
       renderClientCards();
       renderRebalanceList();
       renderReminderList();
-      renderKpis();
     } else if (card) {
       location.hash = "#/clients/" + card.getAttribute("data-id");
     }
@@ -288,7 +372,6 @@
     renderHoldingPanel();
     renderDeviationCards();
     renderRebalanceList();
-    renderKpis();
   });
 
   document.getElementById("holding-list").addEventListener("click", async function (e) {
@@ -304,7 +387,6 @@
       renderHoldingPanel();
       renderDeviationCards();
       renderRebalanceList();
-      renderKpis();
     } else if (editBtn) {
       editingHoldingId = editBtn.getAttribute("data-id");
       renderHoldingPanel();
@@ -334,7 +416,6 @@
     renderHoldingPanel();
     renderDeviationCards();
     renderRebalanceList();
-    renderKpis();
   });
 
   // ---- deviation cards (우측 이탈률 결과, 선택된 고객 기준) ----
@@ -353,21 +434,23 @@
     box.innerHTML = rows.map(function (h) {
       var dev = deviationOf(h);
       var over = Math.abs(dev) > DEVIATION_THRESHOLD;
+      // dev > 0: 초과보유(보유 > 목표) → 매도 필요 · dev < 0: 부족보유(보유 < 목표) → 매수 필요
+      var direction = dev > 0 ? "sell" : "buy";
+      var actionLabel = dev > 0 ? "매도 필요" : "매수 필요";
       var sign = dev > 0 ? "+" : "";
       var actualPct = Math.max(0, Math.min(100, Number(h.actual_weight)));
       var targetPct = Math.max(0, Math.min(100, Number(h.target_weight)));
       var amountHtml = "";
       if (over && selected.total_assets != null) {
         var amount = Math.abs(dev) / 100 * Number(selected.total_assets);
-        var action = dev > 0 ? "매도" : "매수";
         amountHtml =
           '<div class="amount-suggestion">' +
-            '약 <strong>' + fmtAmount(amount) + '억원 ' + action + ' 필요</strong>' +
+            '약 <strong>' + fmtAmount(amount) + '억원 ' + (dev > 0 ? "매도" : "매수") + ' 필요</strong>' +
             '<div class="amount-basis">이탈 ' + fmtWeight(Math.abs(dev)) + '%p × 총자산 ' + fmtWeight(selected.total_assets) + '억원</div>' +
           '</div>';
       }
       return (
-        '<div class="deviation-card' + (over ? " over" : "") + '">' +
+        '<div class="deviation-card' + (over ? " over over-" + direction : "") + '">' +
           '<div class="asset-name">' + escapeHtml(h.asset_class) + '</div>' +
           '<div class="weight-bar">' +
             '<div class="weight-bar-fill" style="width:' + actualPct + '%"></div>' +
@@ -375,7 +458,7 @@
           '</div>' +
           '<div class="stat-row"><span>보유</span><span>' + fmtWeight(h.actual_weight) + '%</span></div>' +
           '<div class="stat-row"><span>목표</span><span>' + fmtWeight(h.target_weight) + '%</span></div>' +
-          '<div class="deviation-value">' + sign + fmtWeight(dev) + '%p' + (over ? ' · 리밸런싱 필요' : '') + '</div>' +
+          '<div class="deviation-value">' + sign + fmtWeight(dev) + '%p' + (over ? ' <span class="action-label">' + actionLabel + '</span>' : '') + '</div>' +
           amountHtml +
         '</div>'
       );
@@ -428,6 +511,114 @@
     if (item) location.hash = "#/clients/" + item.getAttribute("data-id");
   });
 
+  // ---- generic confirm modal (네이티브 confirm() 대체용) ----
+  function askConfirm(message) {
+    document.getElementById("confirm-message").textContent = message;
+    document.getElementById("confirm-modal").classList.add("open");
+    return new Promise(function (resolve) { confirmResolve = resolve; });
+  }
+
+  function closeConfirm(result) {
+    document.getElementById("confirm-modal").classList.remove("open");
+    if (confirmResolve) {
+      var resolve = confirmResolve;
+      confirmResolve = null;
+      resolve(result);
+    }
+  }
+
+  document.getElementById("confirm-cancel").addEventListener("click", function () { closeConfirm(false); });
+  document.getElementById("confirm-ok").addEventListener("click", function () { closeConfirm(true); });
+  document.getElementById("confirm-modal").addEventListener("click", function (e) {
+    if (e.target.id === "confirm-modal") closeConfirm(false);
+  });
+
+  // ---- personal events (개인 일정, 달력 날짜 클릭 시 모달에서 추가/조회) ----
+  function eventsForDate(dateStr) {
+    return personalEvents.filter(function (ev) { return ev.event_date === dateStr; });
+  }
+
+  function renderEventModal() {
+    if (!openEventDate) return;
+    var d = new Date(openEventDate + "T00:00:00");
+    document.getElementById("event-modal-date").textContent = (d.getMonth() + 1) + "월 " + d.getDate() + "일 일정";
+    document.getElementById("event-modal-list").innerHTML = eventsForDate(openEventDate).map(function (ev) {
+      return (
+        '<li class="holding-item" data-id="' + ev.id + '">' +
+          '<div>' +
+            '<div class="asset-name">' + escapeHtml(ev.title) + '</div>' +
+            (ev.memo ? '<div class="weights">' + escapeHtml(ev.memo) + '</div>' : '') +
+          '</div>' +
+          '<div class="card-actions">' +
+            '<button class="delete-btn" data-action="delete-event" data-id="' + ev.id + '" aria-label="일정 삭제" title="삭제">✕</button>' +
+          '</div>' +
+        '</li>'
+      );
+    }).join("");
+  }
+
+  function openEventModal(dateStr) {
+    openEventDate = dateStr;
+    document.getElementById("event-form").reset();
+    renderEventModal();
+    document.getElementById("event-modal").classList.add("open");
+  }
+
+  function closeEventModal() {
+    openEventDate = null;
+    document.getElementById("event-modal").classList.remove("open");
+  }
+
+  async function fetchPersonalEvents() {
+    var res = await db.from("personal_events").select("*").order("event_date", { ascending: true });
+    if (res.error) { reportError(res.error); return; }
+    personalEvents = res.data;
+  }
+
+  document.getElementById("reminder-list").addEventListener("click", function (e) {
+    var cell = e.target.closest(".calendar-day[data-date]");
+    if (cell) openEventModal(cell.getAttribute("data-date"));
+  });
+
+  document.getElementById("event-modal-close").addEventListener("click", closeEventModal);
+  document.getElementById("event-modal").addEventListener("click", function (e) {
+    if (e.target.id === "event-modal") closeEventModal();
+  });
+  document.addEventListener("keydown", function (e) {
+    if (e.key !== "Escape") return;
+    if (openEventDate) closeEventModal();
+    if (confirmResolve) closeConfirm(false);
+  });
+
+  document.getElementById("event-form").addEventListener("submit", async function (e) {
+    e.preventDefault();
+    var title = document.getElementById("event-title").value.trim();
+    var memo = document.getElementById("event-memo").value.trim();
+    if (!title || !openEventDate) return;
+    var res = await db.from("personal_events").insert({
+      title: title,
+      event_date: openEventDate,
+      memo: memo === "" ? null : memo
+    });
+    if (res.error) { reportError(res.error); return; }
+    this.reset();
+    await fetchPersonalEvents();
+    renderEventModal();
+    renderReminderList();
+  });
+
+  document.getElementById("event-modal-list").addEventListener("click", async function (e) {
+    var deleteBtn = e.target.closest('[data-action="delete-event"]');
+    if (!deleteBtn) return;
+    if (!confirm("이 일정을 삭제할까요?")) return;
+    var id = deleteBtn.getAttribute("data-id");
+    var res = await db.from("personal_events").delete().eq("id", id);
+    if (res.error) { reportError(res.error); return; }
+    await fetchPersonalEvents();
+    renderEventModal();
+    renderReminderList();
+  });
+
   // ---- reminder list (우측, 마지막 점검일로부터 7일 이상 지난 고객) ----
   function addDays(dateStr, days) {
     var d = new Date(dateStr + "T00:00:00");
@@ -456,6 +647,13 @@
       (dueByDate[key] = dueByDate[key] || []).push(name);
     });
 
+    // personal_events.event_date는 Supabase에서 "YYYY-MM-DD" 문자열로 오므로
+    // dateKey()의 출력 형식과 그대로 맞아떨어져 추가 변환 없이 키로 쓴다
+    var eventsByDate = {};
+    personalEvents.forEach(function (ev) {
+      (eventsByDate[ev.event_date] = eventsByDate[ev.event_date] || []).push(ev);
+    });
+
     var today = new Date();
     today.setHours(0, 0, 0, 0);
     var year = today.getFullYear();
@@ -476,15 +674,17 @@
       var cellDate = new Date(year, month, day);
       var key = dateKey(cellDate);
       var names = dueByDate[key] || [];
+      var events = eventsByDate[key] || [];
       var isToday = key === todayKeyStr;
       var isPast = cellDate < today;
       var cls = "calendar-day";
       if (isToday) cls += " today";
       if (names.length > 0) cls += isPast ? " overdue" : " upcoming";
       cellsHtml +=
-        '<div class="' + cls + '">' +
+        '<div class="' + cls + '" data-date="' + key + '">' +
           '<div class="calendar-day-num">' + day + '</div>' +
           (names.length > 0 ? '<div class="calendar-day-names">' + names.map(escapeHtml).join(", ") + '</div>' : '') +
+          (events.length > 0 ? '<div class="calendar-day-events">' + events.map(function (ev) { return escapeHtml(ev.title); }).join(", ") + '</div>' : '') +
         '</div>';
     }
 
@@ -532,7 +732,6 @@
       selectedClientId = null;
       renderClientCards();
     } else {
-      renderKpis();
       renderRebalanceList();
       renderReminderList();
     }
@@ -549,8 +748,9 @@
 
   // ---- init ----
   renderHeader();
+  fetchStocks(); // 고객/자산 데이터와 독립적이므로 별도로 바로 호출
   (async function init() {
-    await Promise.all([fetchClients(), fetchHoldings()]);
+    await Promise.all([fetchClients(), fetchHoldings(), fetchPersonalEvents()]);
     renderRoute();
   })();
 })();

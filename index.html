@@ -23,7 +23,16 @@
 <main>
 
   <section class="view" data-view="dashboard">
-    <section class="kpi-row" id="kpi-row"></section>
+    <section class="panel stock-panel">
+      <div class="stock-panel-header">
+        <div>
+          <h2>오늘의 급등락 종목</h2>
+          <p class="sub" id="stocks-updated"></p>
+        </div>
+        <button type="button" class="btn-ghost" id="stocks-refresh">⟳ 새로고침</button>
+      </div>
+      <div id="stocks-content"></div>
+    </section>
     <div class="layout dashboard-layout">
       <section class="panel">
         <h2>리밸런싱 필요 고객</h2>
@@ -33,7 +42,7 @@
 
       <section class="panel">
         <h2>다음 점검 리마인더</h2>
-        <p class="sub">고객별 다음 점검 예정일(마지막 점검일 + 7일)을 이번 달 달력에 표시합니다. 검게 표시된 날짜는 점검이 밀린 것입니다.</p>
+        <p class="sub">고객별 다음 점검 예정일(마지막 점검일 + 7일)과 개인 일정을 이번 달 달력에 표시합니다. 검게 표시된 날짜는 점검이 밀린 것입니다. 날짜를 클릭하면 개인 일정을 추가할 수 있습니다.</p>
         <div id="reminder-list"></div>
       </section>
     </div>
@@ -51,7 +60,14 @@
         <button type="submit">+ 고객 등록</button>
       </form>
 
-      <input class="client-search-input" id="client-search" type="text" placeholder="고객명 검색">
+      <div class="client-filter-row">
+        <input class="client-search-input" id="client-search" type="text" placeholder="고객명 검색">
+        <select class="client-sort-select" id="client-sort">
+          <option value="review-oldest" selected>점검일 오래된 순</option>
+          <option value="deviation-desc">이탈률 큰 순</option>
+          <option value="name">이름순</option>
+        </select>
+      </div>
 
       <div class="card-grid" id="client-cards"></div>
     </section>
@@ -92,6 +108,31 @@
   </section>
 
 </main>
+
+<div class="modal-overlay" id="event-modal">
+  <div class="modal-panel">
+    <div class="modal-header">
+      <h3 id="event-modal-date"></h3>
+      <button type="button" class="icon-btn" id="event-modal-close" aria-label="닫기" title="닫기">✕</button>
+    </div>
+    <ul id="event-modal-list"></ul>
+    <form class="add-form" id="event-form">
+      <input class="event-title-input" id="event-title" type="text" placeholder="제목" required>
+      <input class="event-memo-input" id="event-memo" type="text" placeholder="메모(선택)">
+      <button type="submit">+ 일정 추가</button>
+    </form>
+  </div>
+</div>
+
+<div class="modal-overlay" id="confirm-modal">
+  <div class="modal-panel confirm-panel">
+    <p class="confirm-message" id="confirm-message"></p>
+    <div class="confirm-actions">
+      <button type="button" class="btn-ghost" id="confirm-cancel">취소</button>
+      <button type="button" id="confirm-ok">삭제</button>
+    </div>
+  </div>
+</div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <script src="app.js"></script>

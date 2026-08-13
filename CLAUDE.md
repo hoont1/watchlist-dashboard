@@ -43,16 +43,27 @@ data, unless the user overrides them for a specific request:
 
 ### 기술 규칙
 
-- **순수 HTML/CSS/JS만 사용, Supabase 클라이언트는 예외** — 프레임워크,
-  번들러, 빌드 도구 도입은 금지하되, 데이터 저장을 위한 `@supabase/supabase-js`
-  (CDN) 로드는 허용한다.
-- **파일 구성은 3개로 유지** — `index.html`, `style.css`, `app.js`. 마크업/스타일/
-  로직을 한 파일에 섞지 말고 이 세 파일로 분리해 유지한다.
-- **데이터 저장은 Supabase** — 고객·자산군 데이터는 Supabase 테이블(`clients`,
-  `holdings`)에 저장한다. 로그인 기능이 없으므로 RLS는 `anon` 전체 접근
-  정책으로 열려 있다 — URL/키를 아는 사람은 누구나 읽고 쓸 수 있다는 점을
-  전제로 개인 용도로만 사용한다. 이전에 만든 `watchlist`/`memos`/`checklist`
-  테이블은 더 이상 이 앱에서 쓰지 않지만 삭제하지 않고 남겨둔다.
+- **순수 HTML/CSS/JS만 사용, Supabase 클라이언트·시세 프록시 서버리스 함수는
+  예외** — 프레임워크, 번들러, 빌드 도구 도입은 금지하되, 데이터 저장을 위한
+  `@supabase/supabase-js`(CDN) 로드와, 네이버 금융 시세를 CORS 없이 가져오기
+  위한 Vercel Serverless Function(`api/stocks.js`, 의존성 없는 순수 Node.js —
+  `package.json`/npm 설치 단계를 추가하지 않는다)은 허용한다.
+- **파일 구성은 프론트 3개 + 서버리스 1개로 유지** — 프론트엔드는
+  `index.html`, `style.css`, `app.js` 세 파일로, 마크업/스타일/로직을 한
+  파일에 섞지 않고 분리해 유지한다. 시세 프록시는 `api/stocks.js` 하나로
+  제한한다.
+- **데이터 저장은 Supabase** — 고객·자산군·개인 일정 데이터는 Supabase
+  테이블(`clients`, `holdings`, `personal_events`)에 저장한다. 로그인 기능이
+  없으므로 RLS는 `anon` 전체 접근 정책으로 열려 있다 — URL/키를 아는 사람은
+  누구나 읽고 쓸 수 있다는 점을 전제로 개인 용도로만 사용한다. 이전에 만든
+  `watchlist`/`memos`/`checklist` 테이블은 더 이상 이 앱에서 쓰지 않지만
+  삭제하지 않고 남겨둔다.
+- **시세 데이터는 네이버 금융 파싱** — `api/stocks.js`가 네이버 금융의
+  코스피/코스닥 상승률·하락률 상위 페이지(`finance.naver.com/sise/sise_rise
+  .naver`, `sise_fall.naver`) HTML을 서버에서 가져와 정규식으로 파싱한다.
+  공식 API가 아니므로 네이버가 마크업을 바꾸면 파싱이 깨질 수 있음을
+  전제한다. 페이지 로드 1회 + 수동 새로고침 버튼으로만 호출하고, 자동
+  폴링은 하지 않는다.
 
 ### 작업 규칙
 

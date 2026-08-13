@@ -10,6 +10,8 @@
 !DESIGN.md
 !CLAUDE.md
 !prd.md
+!api
+!api/stocks.js
 
 # Explicit safety net even though the whitelist above already excludes it —
 # never commit environment/secret files.
