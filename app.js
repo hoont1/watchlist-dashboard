@@ -86,6 +86,21 @@
     }).join("") + '</ul>';
   }
 
+  // /api/stocks 자체를 호출할 수 없는 최악의 경우(네트워크 완전 차단, 함수
+  // 자체 오류 등)에 대비한 프론트엔드 최종 폴백 — 화면이 완전히 비지 않게 한다
+  var FRONTEND_FALLBACK_STOCKS = {
+    risers: [
+      { name: "예시종목 A", price: "12,500", changePercent: 29.8 },
+      { name: "예시종목 B", price: "8,420", changePercent: 21.3 },
+      { name: "예시종목 C", price: "45,100", changePercent: 15.7 }
+    ],
+    fallers: [
+      { name: "예시종목 F", price: "5,230", changePercent: -28.6 },
+      { name: "예시종목 G", price: "19,900", changePercent: -19.2 },
+      { name: "예시종목 H", price: "2,780", changePercent: -14.5 }
+    ]
+  };
+
   function renderStocks(state) {
     var content = document.getElementById("stocks-content");
     var updated = document.getElementById("stocks-updated");
@@ -94,17 +109,10 @@
       content.innerHTML = '<div class="empty-state">시세 정보를 불러오는 중...</div>';
       return;
     }
-    if (state.status === "error") {
-      updated.textContent = "";
-      content.innerHTML =
-        '<div class="empty-state">시세 정보를 불러오지 못했습니다.' +
-          '<div class="stock-retry-row"><button type="button" id="stocks-retry">다시 시도</button></div>' +
-        '</div>';
-      return;
-    }
     var d = new Date(state.data.updatedAt);
     updated.textContent = "업데이트 " + pad2(d.getHours()) + ":" + pad2(d.getMinutes()) + " 기준";
     content.innerHTML =
+      (state.data.notice ? '<div class="stock-notice">' + escapeHtml(state.data.notice) + '</div>' : '') +
       '<div class="stock-columns">' +
         '<div class="stock-col">' +
           '<h3 class="stock-col-title">급등</h3>' +
@@ -114,7 +122,8 @@
           '<h3 class="stock-col-title">급락</h3>' +
           renderStockList(state.data.fallers, "down") +
         '</div>' +
-      '</div>';
+      '</div>' +
+      (state.data.notice ? '<div class="stock-retry-row"><button type="button" id="stocks-retry">다시 시도</button></div>' : '');
   }
 
   async function fetchStocks() {
@@ -122,11 +131,19 @@
     try {
       var res = await fetch("/api/stocks");
       var data = await res.json();
-      if (!res.ok || data.error) throw new Error((data && data.message) || "요청 실패");
+      if (!res.ok) throw new Error((data && data.message) || "요청 실패 (" + res.status + ")");
       renderStocks({ status: "ok", data: data });
     } catch (err) {
-      console.error(err);
-      renderStocks({ status: "error" });
+      console.error("[stocks] /api/stocks 호출 실패, 프론트 폴백 표시:", err);
+      renderStocks({
+        status: "ok",
+        data: {
+          updatedAt: new Date().toISOString(),
+          risers: FRONTEND_FALLBACK_STOCKS.risers,
+          fallers: FRONTEND_FALLBACK_STOCKS.fallers,
+          notice: "실시간 데이터를 불러오지 못해 예시 데이터를 표시 중입니다."
+        }
+      });
     }
   }
 

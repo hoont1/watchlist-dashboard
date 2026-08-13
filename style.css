@@ -152,6 +152,14 @@ body {
 .stock-change.up { color: var(--stock-up); }
 .stock-change.down { color: var(--stock-down); }
 .stock-retry-row { margin-top: var(--space-sm); }
+.stock-notice {
+  margin-bottom: var(--space-sm);
+  padding: var(--space-sm) var(--space-md);
+  background: var(--canvas-softer);
+  border-radius: var(--radius-md);
+  font-size: 12px;
+  color: var(--body);
+}
 
 /* ---- client bar (top-of-page registration panel) ---- */
 .client-bar {
