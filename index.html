@@ -55,6 +55,7 @@
 
       <form class="add-form" id="client-form">
         <input class="client-name-input" id="client-name" type="text" placeholder="고객명" required>
+        <input class="client-age-input" id="client-age" type="number" min="0" max="130" placeholder="나이(선택)">
         <input class="client-date-input" id="client-date" type="date" required>
         <input class="client-assets-input" id="client-assets" type="number" step="0.1" min="0" placeholder="총자산(억원, 선택)">
         <button type="submit">+ 고객 등록</button>
@@ -67,6 +68,7 @@
           <thead>
             <tr>
               <th data-sort="name">고객명</th>
+              <th>나이</th>
               <th data-sort="review-oldest">점검일</th>
               <th>총자산(억원)</th>
               <th data-sort="deviation-desc">상태</th>
@@ -84,6 +86,7 @@
       <button type="button" class="btn-ghost back-btn" data-nav="clients">← 고객 목록</button>
       <h2 id="detail-client-name"></h2>
       <p class="sub" id="detail-client-meta"></p>
+      <span class="gift-badge" id="gift-recommend-badge" hidden>증여 검토 권장</span>
     </section>
 
     <div class="layout">
@@ -108,6 +111,27 @@
           <h2>이탈률 결과</h2>
           <p class="sub">이탈 기준: 보유비중 − 목표비중이 ±5%p를 초과하면 리밸런싱 필요로 표시합니다. (막대: 보유비중, 세로선: 목표비중)</p>
           <div class="card-grid" id="deviation-cards"></div>
+        </section>
+
+        <section class="panel">
+          <h2>증여 검토 시뮬레이터</h2>
+          <p class="sub">10년간 증여세 공제 한도를 기준으로 예상 증여세를 계산합니다.</p>
+
+          <form class="add-form" id="gift-form">
+            <select class="gift-relation-select" id="gift-relation">
+              <option value="spouse">배우자</option>
+              <option value="child">자녀</option>
+            </select>
+            <input class="gift-child-age-input" id="gift-child-age" type="number" min="0" max="130" placeholder="자녀 나이" hidden>
+            <input class="gift-amount-input" id="gift-amount" type="number" min="0" step="1000000" placeholder="증여 예정 금액(원)">
+            <label class="gift-checkbox-label">
+              <input type="checkbox" id="gift-marriage-deduction">
+              혼인·출산 공제 적용(+1억원)
+            </label>
+          </form>
+
+          <div id="gift-result"></div>
+          <p class="disclaimer">본 계산은 참고용이며 실제 세액은 전문가 상담을 통해 확인하시기 바랍니다.</p>
         </section>
       </aside>
     </div>

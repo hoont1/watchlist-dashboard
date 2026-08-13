@@ -201,12 +201,12 @@
   function renderClientTable() {
     var body = document.getElementById("client-table-body");
     if (clients.length === 0) {
-      body.innerHTML = '<tr><td colspan="5" class="empty-state">아직 등록된 고객이 없습니다. 위에서 고객을 등록해보세요.</td></tr>';
+      body.innerHTML = '<tr><td colspan="6" class="empty-state">아직 등록된 고객이 없습니다. 위에서 고객을 등록해보세요.</td></tr>';
       return;
     }
     var rows = sortedClients(filteredClients());
     if (rows.length === 0) {
-      body.innerHTML = '<tr><td colspan="5" class="empty-state">조건에 맞는 고객이 없습니다.</td></tr>';
+      body.innerHTML = '<tr><td colspan="6" class="empty-state">조건에 맞는 고객이 없습니다.</td></tr>';
       return;
     }
     body.innerHTML = rows.map(function (c) {
@@ -216,6 +216,7 @@
       return (
         '<tr class="client-row' + (selected ? " selected" : "") + '" data-id="' + c.id + '" data-action="select-client">' +
           '<td class="client-name-cell">' + escapeHtml(c.name) + '</td>' +
+          '<td>' + (c.age != null ? c.age + "세" : "—") + '</td>' +
           '<td>' + escapeHtml(c.review_date) + '</td>' +
           '<td>' + (c.total_assets != null ? fmtWeight(c.total_assets) : "—") + '</td>' +
           '<td><span class="status-badge ' + status + '" title="' + meta.label + '">' + meta.emoji + ' ' + meta.label + '</span></td>' +
@@ -253,11 +254,13 @@
   document.getElementById("client-form").addEventListener("submit", async function (e) {
     e.preventDefault();
     var name = document.getElementById("client-name").value.trim();
+    var ageInput = document.getElementById("client-age").value;
     var reviewDate = document.getElementById("client-date").value;
     var assetsInput = document.getElementById("client-assets").value;
     if (!name || !reviewDate) return;
     var res = await db.from("clients").insert({
       name: name,
+      age: ageInput === "" ? null : Number(ageInput),
       review_date: reviewDate,
       total_assets: assetsInput === "" ? null : Number(assetsInput)
     }).select().single();
@@ -719,12 +722,94 @@
       '<div class="calendar-grid">' + cellsHtml + '</div>';
   }
 
-  // ---- client detail header (고객 상세 페이지 상단: 이름/점검일/총자산) ----
+  // ---- client detail header (고객 상세 페이지 상단: 이름/나이/점검일/총자산) ----
+  var GIFT_REVIEW_THRESHOLD = 10; // 총자산 10억원 이상이면 "증여 검토 권장" 배지 표시
+
   function renderClientDetailHeader(client) {
     document.getElementById("detail-client-name").textContent = client.name;
     document.getElementById("detail-client-meta").textContent =
-      "점검일 " + client.review_date + (client.total_assets != null ? " · 총자산 " + fmtWeight(client.total_assets) + "억원" : "");
+      "점검일 " + client.review_date +
+      (client.age != null ? " · 나이 " + client.age + "세" : "") +
+      (client.total_assets != null ? " · 총자산 " + fmtWeight(client.total_assets) + "억원" : "");
+    document.getElementById("gift-recommend-badge").hidden =
+      !(client.total_assets != null && client.total_assets >= GIFT_REVIEW_THRESHOLD);
   }
+
+  // ---- 증여 검토 시뮬레이터 (고객 상세, 리밸런싱과 별개의 참고용 계산기) ----
+  // 10년간 증여세 공제 한도(2025~2026년 기준) — 배우자/자녀(성인·미성년), 원 단위
+  var GIFT_LIMIT = { spouse: 600000000, childAdult: 50000000, childMinor: 20000000 };
+  var GIFT_MARRIAGE_BONUS = 100000000;
+  var GIFT_ADULT_AGE = 19;
+  // 증여세 누진세율 구간: 과세표준 상한(원), 세율, 누진공제액(원)
+  var GIFT_BRACKETS = [
+    { max: 100000000, rate: 0.10, deduction: 0 },
+    { max: 500000000, rate: 0.20, deduction: 10000000 },
+    { max: 1000000000, rate: 0.30, deduction: 60000000 },
+    { max: 3000000000, rate: 0.40, deduction: 160000000 },
+    { max: Infinity, rate: 0.50, deduction: 460000000 }
+  ];
+
+  function fmtWon(n) {
+    return Math.round(n).toLocaleString("ko-KR") + "원";
+  }
+
+  function giftDeductionLimit() {
+    var relation = document.getElementById("gift-relation").value;
+    var limit;
+    if (relation === "spouse") {
+      limit = GIFT_LIMIT.spouse;
+    } else {
+      var ageInput = document.getElementById("gift-child-age").value;
+      var isMinor = ageInput !== "" && Number(ageInput) < GIFT_ADULT_AGE;
+      limit = isMinor ? GIFT_LIMIT.childMinor : GIFT_LIMIT.childAdult;
+    }
+    if (document.getElementById("gift-marriage-deduction").checked) limit += GIFT_MARRIAGE_BONUS;
+    return limit;
+  }
+
+  function giftTaxOf(taxableBase) {
+    if (taxableBase <= 0) return 0;
+    for (var i = 0; i < GIFT_BRACKETS.length; i++) {
+      if (taxableBase <= GIFT_BRACKETS[i].max) {
+        return taxableBase * GIFT_BRACKETS[i].rate - GIFT_BRACKETS[i].deduction;
+      }
+    }
+  }
+
+  function renderGiftResult() {
+    var box = document.getElementById("gift-result");
+    var amountInput = document.getElementById("gift-amount").value;
+    if (amountInput === "") {
+      box.innerHTML = '<div class="empty-state">증여 예정 금액을 입력하면 계산됩니다.</div>';
+      return;
+    }
+    var amount = Number(amountInput);
+    var limit = giftDeductionLimit();
+    var taxableBase = amount - limit;
+    var tax = giftTaxOf(taxableBase);
+    box.innerHTML =
+      '<div class="gift-result-grid">' +
+        '<div class="gift-stat"><div class="gift-stat-label">공제 한도</div><div class="gift-stat-value">' + fmtWon(limit) + '</div></div>' +
+        '<div class="gift-stat"><div class="gift-stat-label">과세표준</div><div class="gift-stat-value">' + fmtWon(Math.max(0, taxableBase)) + '</div></div>' +
+        '<div class="gift-stat' + (tax > 0 ? ' warn' : '') + '"><div class="gift-stat-label">예상 증여세액</div><div class="gift-stat-value">' + (tax > 0 ? fmtWon(tax) : "증여세 없음") + '</div></div>' +
+      '</div>';
+  }
+
+  function resetGiftForm() {
+    document.getElementById("gift-form").reset();
+    document.getElementById("gift-child-age").hidden = true;
+    renderGiftResult();
+  }
+
+  document.getElementById("gift-relation").addEventListener("change", function (e) {
+    document.getElementById("gift-child-age").hidden = e.target.value !== "child";
+    renderGiftResult();
+  });
+  document.getElementById("gift-form").addEventListener("submit", function (e) { e.preventDefault(); });
+  ["gift-child-age", "gift-amount", "gift-marriage-deduction"].forEach(function (id) {
+    document.getElementById(id).addEventListener("input", renderGiftResult);
+    document.getElementById(id).addEventListener("change", renderGiftResult);
+  });
 
   // ---- routing (해시 기반 페이지 전환: #/, #/clients, #/clients/:id) ----
   function parseRoute() {
@@ -754,6 +839,7 @@
       renderClientDetailHeader(client);
       renderHoldingPanel();
       renderDeviationCards();
+      resetGiftForm();
     } else if (route.view === "clients") {
       selectedClientId = null;
       renderClientTable();

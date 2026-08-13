@@ -104,6 +104,16 @@ body {
 @media (max-width: 640px) { .client-detail-header { margin: var(--space-lg) 16px 0; } }
 .back-btn { margin-bottom: var(--space-md); }
 .client-detail-header h2 { font-size: 24px; line-height: 32px; }
+.gift-badge {
+  display: inline-block;
+  margin-top: var(--space-sm);
+  padding: 4px 12px;
+  border-radius: var(--radius-pill);
+  background: var(--ink);
+  color: var(--on-dark);
+  font-size: 12px;
+  font-weight: 700;
+}
 
 /* ---- 오늘의 급등락 종목 (대시보드 상단, /api/stocks 연동) ---- */
 .stock-panel {
@@ -261,6 +271,7 @@ form.add-form textarea:focus,
   border-color: var(--ink);
 }
 .client-name-input { flex: 1 1 160px; min-width: 120px; }
+.client-age-input { flex: 0 1 120px; }
 .client-date-input { flex: 0 1 170px; }
 .client-assets-input { flex: 0 1 170px; }
 .asset-name-input { flex: 1 1 160px; min-width: 120px; }
@@ -536,6 +547,50 @@ button.btn-ghost:hover {
   gap: var(--space-xs);
 }
 .sum-check strong { color: var(--ink); font-weight: 700; }
+
+/* ---- 증여 검토 시뮬레이터 ---- */
+.gift-relation-select {
+  flex: 0 1 140px;
+  font-family: var(--font-text);
+  font-size: 16px;
+  padding: 0 var(--space-md);
+  min-height: 48px;
+  border: 1px solid var(--surface-pressed);
+  border-radius: var(--radius-md);
+  background: var(--canvas);
+  color: var(--ink);
+}
+.gift-relation-select:focus {
+  outline: 2px solid var(--ink);
+  outline-offset: 1px;
+  border-color: var(--ink);
+}
+.gift-child-age-input { flex: 0 1 120px; }
+.gift-amount-input { flex: 1 1 200px; min-width: 160px; }
+.gift-checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  flex: 1 1 100%;
+  font-size: 13px;
+  color: var(--body);
+}
+.gift-checkbox-label input { width: auto; min-height: 0; }
+.gift-result-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: var(--space-sm);
+}
+.gift-stat {
+  background: var(--canvas);
+  border-radius: var(--radius-lg);
+  padding: var(--space-lg);
+  border: 1px solid var(--surface-pressed);
+}
+.gift-stat-label { font-size: 12px; color: var(--body); }
+.gift-stat-value { margin-top: 4px; font-size: 16px; font-weight: 700; color: var(--ink); }
+.gift-stat.warn .gift-stat-value { color: var(--accent-sell); }
+.disclaimer { margin-top: var(--space-sm); font-size: 11px; color: var(--mute); }
 
 /* ---- rebalance list (우측 리밸런싱 필요 고객) ---- */
 #rebalance-list, #reminder-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--space-sm); }
