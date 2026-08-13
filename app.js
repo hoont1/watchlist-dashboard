@@ -53,7 +53,7 @@
   var selectedClientId = null;
   var editingHoldingId = null;
   var clientSearchQuery = "";
-  var clientSortOption = "review-oldest"; // "review-oldest" | "deviation-desc" | "name"
+  var clientSortOption = "status-priority"; // "status-priority" (default) | "review-oldest" | "deviation-desc" | "name"
   var openEventDate = null; // "YYYY-MM-DD" of the day shown in the event modal, null when closed
   var confirmResolve = null; // pending Promise resolver for the generic confirm modal, null when closed
 
@@ -153,6 +153,8 @@
   });
 
   // ---- clients ----
+  var STATUS_PRIORITY = { danger: 0, warning: 1, ok: 2 };
+
   // 🔴 리밸런싱 필요(이탈 초과) > 🟡 점검 임박(다음 점검 예정일까지 3일 이하) > 🟢 정상, 이 우선순위로 판정
   function clientStatus(client) {
     var rows = holdings.filter(function (h) { return h.client_id === client.id; });
@@ -183,40 +185,42 @@
       sorted.sort(function (a, b) { return maxAbsDeviationForClient(b.id) - maxAbsDeviationForClient(a.id); });
     } else if (clientSortOption === "name") {
       sorted.sort(function (a, b) { return a.name.localeCompare(b.name, "ko"); });
-    } else {
+    } else if (clientSortOption === "review-oldest") {
       sorted.sort(function (a, b) { return a.review_date < b.review_date ? -1 : a.review_date > b.review_date ? 1 : 0; });
+    } else {
+      // 기본 정렬: 리밸런싱 필요(danger) 고객이 위로, 같은 상태끼리는 이탈률 큰 순
+      sorted.sort(function (a, b) {
+        var pDiff = STATUS_PRIORITY[clientStatus(a)] - STATUS_PRIORITY[clientStatus(b)];
+        if (pDiff !== 0) return pDiff;
+        return maxAbsDeviationForClient(b.id) - maxAbsDeviationForClient(a.id);
+      });
     }
     return sorted;
   }
 
-  function renderClientCards() {
-    var box = document.getElementById("client-cards");
+  function renderClientTable() {
+    var body = document.getElementById("client-table-body");
     if (clients.length === 0) {
-      box.innerHTML = '<div class="empty-state">아직 등록된 고객이 없습니다. 위에서 고객을 등록해보세요.</div>';
+      body.innerHTML = '<tr><td colspan="5" class="empty-state">아직 등록된 고객이 없습니다. 위에서 고객을 등록해보세요.</td></tr>';
       return;
     }
     var rows = sortedClients(filteredClients());
     if (rows.length === 0) {
-      box.innerHTML = '<div class="empty-state">조건에 맞는 고객이 없습니다.</div>';
+      body.innerHTML = '<tr><td colspan="5" class="empty-state">조건에 맞는 고객이 없습니다.</td></tr>';
       return;
     }
-    box.innerHTML = rows.map(function (c) {
+    body.innerHTML = rows.map(function (c) {
       var selected = c.id === selectedClientId;
-      var meta = STATUS_META[clientStatus(c)];
+      var status = clientStatus(c);
+      var meta = STATUS_META[status];
       return (
-        '<div class="client-card' + (selected ? " selected" : "") + '" data-id="' + c.id + '" data-action="select-client">' +
-          '<div class="card-top">' +
-            '<div>' +
-              '<div class="name">' + escapeHtml(c.name) + '</div>' +
-              '<div class="review-date">점검일 ' + escapeHtml(c.review_date) + '</div>' +
-              (c.total_assets != null ? '<div class="review-date">총자산 ' + fmtWeight(c.total_assets) + '억원</div>' : '') +
-            '</div>' +
-            '<div class="card-actions">' +
-              '<span class="status-badge" title="' + meta.label + '">' + meta.emoji + '</span>' +
-              '<button class="delete-btn" data-action="delete-client" data-id="' + c.id + '" aria-label="고객 삭제" title="삭제">✕</button>' +
-            '</div>' +
-          '</div>' +
-        '</div>'
+        '<tr class="client-row' + (selected ? " selected" : "") + '" data-id="' + c.id + '" data-action="select-client">' +
+          '<td class="client-name-cell">' + escapeHtml(c.name) + '</td>' +
+          '<td>' + escapeHtml(c.review_date) + '</td>' +
+          '<td>' + (c.total_assets != null ? fmtWeight(c.total_assets) : "—") + '</td>' +
+          '<td><span class="status-badge ' + status + '" title="' + meta.label + '">' + meta.emoji + ' ' + meta.label + '</span></td>' +
+          '<td><button class="delete-btn" data-action="delete-client" data-id="' + c.id + '" aria-label="고객 삭제" title="삭제">✕</button></td>' +
+        '</tr>'
       );
     }).join("");
   }
@@ -228,17 +232,22 @@
     if (selectedClientId && !clients.some(function (c) { return c.id === selectedClientId; })) {
       selectedClientId = null;
     }
-    renderClientCards();
+    renderClientTable();
   }
 
   document.getElementById("client-search").addEventListener("input", function (e) {
     clientSearchQuery = e.target.value;
-    renderClientCards();
+    renderClientTable();
   });
 
-  document.getElementById("client-sort").addEventListener("change", function (e) {
-    clientSortOption = e.target.value;
-    renderClientCards();
+  // 컬럼 헤더 클릭으로 정렬 — 고객명(이름순)/점검일(오래된순)/상태(이탈률 큰 순)
+  document.querySelector(".client-table thead").addEventListener("click", function (e) {
+    var th = e.target.closest("th[data-sort]");
+    if (!th) return;
+    clientSortOption = th.getAttribute("data-sort");
+    document.querySelectorAll(".client-table th").forEach(function (el) { el.classList.remove("active"); });
+    th.classList.add("active");
+    renderClientTable();
   });
 
   document.getElementById("client-form").addEventListener("submit", async function (e) {
@@ -259,7 +268,7 @@
     location.hash = "#/clients/" + res.data.id;
   });
 
-  document.getElementById("client-cards").addEventListener("click", async function (e) {
+  document.getElementById("client-table-body").addEventListener("click", async function (e) {
     var deleteBtn = e.target.closest('[data-action="delete-client"]');
     var card = e.target.closest('[data-action="select-client"]');
     if (deleteBtn) {
@@ -271,7 +280,7 @@
       if (selectedClientId === id) selectedClientId = null;
       await fetchClients();
       await fetchHoldings();
-      renderClientCards();
+      renderClientTable();
       renderRebalanceList();
       renderReminderList();
     } else if (card) {
@@ -747,7 +756,7 @@
       renderDeviationCards();
     } else if (route.view === "clients") {
       selectedClientId = null;
-      renderClientCards();
+      renderClientTable();
     } else {
       renderRebalanceList();
       renderReminderList();

@@ -246,29 +246,10 @@ form.add-form textarea::placeholder,
 .client-search-input::placeholder {
   color: var(--mute);
 }
-.client-filter-row {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-sm);
-  margin-bottom: var(--space-md);
-}
-.client-search-input { flex: 1 1 200px; }
-.client-sort-select {
-  flex: 0 1 170px;
-  font-family: var(--font-text);
-  font-size: 14px;
-  font-weight: 400;
-  padding: 0 var(--space-md);
-  min-height: 48px;
-  border: 1px solid var(--surface-pressed);
-  border-radius: var(--radius-md);
-  background: var(--canvas);
-  color: var(--ink);
-}
-.client-sort-select:focus {
-  outline: 2px solid var(--ink);
-  outline-offset: 1px;
-  border-color: var(--ink);
+.client-search-input {
+  display: block;
+  width: 100%;
+  margin-bottom: var(--space-lg);
 }
 
 form.add-form input:focus,
@@ -369,45 +350,59 @@ button.btn-ghost:hover {
   gap: 8px;
 }
 
-/* ---- client card — selection uses the brand's own emphasis device: a polarity
-   flip to full black, the same move the doc uses for promo-card-on-dark ---- */
-.client-card {
-  background: var(--canvas);
+/* ---- client table (고객 탭 목록) ---- */
+.client-table-wrap {
+  overflow-x: auto;
   border-radius: var(--radius-lg);
-  padding: var(--space-lg);
   border: 1px solid var(--surface-pressed);
-  cursor: pointer;
-  transition: background-color 0.15s ease, color 0.15s ease, border-color 0.15s ease;
 }
-.client-card:hover { border-color: var(--ink); }
-.client-card.selected {
-  background: var(--ink);
-  border-color: var(--ink);
-  color: var(--on-dark);
+.client-table {
+  width: 100%;
+  min-width: 560px;
+  border-collapse: collapse;
+  background: var(--canvas);
 }
-.client-card .name {
-  font-size: 16px;
-  font-weight: 500;
-  line-height: 20px;
-  color: inherit;
-  word-break: break-word;
-}
-.client-card .review-date {
-  font-size: 13px;
-  font-weight: 400;
-  line-height: 20px;
+.client-table thead th {
+  text-align: left;
+  padding: var(--space-md);
+  font-size: 12px;
+  font-weight: 700;
   color: var(--body);
+  background: var(--canvas-softer);
+  border-bottom: 1px solid var(--surface-pressed);
+  white-space: nowrap;
 }
-.client-card.selected .review-date { color: var(--mute); }
-.client-card.selected .icon-btn,
-.client-card.selected .delete-btn { color: var(--mute); }
-.client-card.selected .icon-btn:hover,
-.client-card.selected .delete-btn:hover { color: var(--on-dark); }
+.client-table th[data-sort] { cursor: pointer; user-select: none; }
+.client-table th[data-sort]:hover { color: var(--ink); }
+.client-table th.active { color: var(--ink); }
+.client-table th.active::after { content: " ▾"; }
+.client-row { cursor: pointer; transition: background-color 0.15s ease; }
+.client-row td {
+  padding: var(--space-md);
+  border-bottom: 1px solid var(--surface-pressed);
+  white-space: nowrap;
+  color: var(--ink);
+}
+.client-row:last-child td { border-bottom: none; }
+.client-row:hover td { background: var(--canvas-soft); }
+.client-row.selected td { background: var(--ink); color: var(--on-dark); }
+.client-name-cell { font-weight: 500; }
+.client-table td.empty-state { white-space: normal; }
+
+/* ---- status badge — 빨강/노랑/초록으로 색상 구분 ---- */
 .status-badge {
-  font-size: 14px;
-  line-height: 1;
-  padding: 8px 4px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 4px 10px;
+  border-radius: var(--radius-pill);
+  white-space: nowrap;
 }
+.status-badge.danger { background: rgba(220, 38, 38, 0.12); color: #b91c1c; }
+.status-badge.warning { background: rgba(202, 138, 4, 0.16); color: #92610a; }
+.status-badge.ok { background: rgba(22, 163, 74, 0.12); color: #15803d; }
 
 /* ---- holding list (좌측 자산군 입력 결과) ---- */
 #holding-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--space-sm); }

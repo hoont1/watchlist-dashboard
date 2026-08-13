@@ -51,7 +51,7 @@
   <section class="view" data-view="clients">
     <section class="panel client-bar">
       <h2>고객 등록</h2>
-      <p class="sub">고객명과 점검일을 입력해 등록하고, 아래 카드를 클릭해 고객 상세 페이지로 이동하세요.</p>
+      <p class="sub">고객명과 점검일을 입력해 등록하고, 아래 행을 클릭해 고객 상세 페이지로 이동하세요.</p>
 
       <form class="add-form" id="client-form">
         <input class="client-name-input" id="client-name" type="text" placeholder="고객명" required>
@@ -60,16 +60,22 @@
         <button type="submit">+ 고객 등록</button>
       </form>
 
-      <div class="client-filter-row">
-        <input class="client-search-input" id="client-search" type="text" placeholder="고객명 검색">
-        <select class="client-sort-select" id="client-sort">
-          <option value="review-oldest" selected>점검일 오래된 순</option>
-          <option value="deviation-desc">이탈률 큰 순</option>
-          <option value="name">이름순</option>
-        </select>
-      </div>
+      <input class="client-search-input" id="client-search" type="text" placeholder="고객명 검색">
 
-      <div class="card-grid" id="client-cards"></div>
+      <div class="client-table-wrap">
+        <table class="client-table">
+          <thead>
+            <tr>
+              <th data-sort="name">고객명</th>
+              <th data-sort="review-oldest">점검일</th>
+              <th>총자산(억원)</th>
+              <th data-sort="deviation-desc">상태</th>
+              <th>관리</th>
+            </tr>
+          </thead>
+          <tbody id="client-table-body"></tbody>
+        </table>
+      </div>
     </section>
   </section>
 
